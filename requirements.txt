@@ -1,0 +1,4 @@
+chromedriver-autoinstaller
+selenium
+beautifulsoup4
+tqdm
