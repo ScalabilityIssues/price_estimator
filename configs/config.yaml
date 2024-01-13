@@ -1,0 +1,16 @@
+defaults:  
+  - _self_  
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .
+
+dates: "2024-03-01 2024-03-02 2024-03-03"
+split_date: "2024-03-03"
+locations: "VCE PAR"
+output_data_dir: "${hydra:runtime.cwd}/data/"
+output_model_dir: "${hydra:runtime.cwd}/out/"
+date_format: "%Y-%m-%d"

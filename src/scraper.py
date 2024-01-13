@@ -1,14 +1,17 @@
 from datetime import datetime
+from time import sleep
 import chromedriver_autoinstaller
+import itertools
 from bs4 import BeautifulSoup
-from tqdm import tqdm
+import hydra
+import csv
+from os.path import isfile
+from omegaconf import DictConfig, OmegaConf
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-date_format = "%Y-%m-%d"
 
 class Scraper():
     def __init__(self, prefix_url="https://www.kayak.com/flights/", headless=True):
@@ -22,50 +25,87 @@ class Scraper():
     def __del__(self):
         self.driver.quit()
 
-
-    def get_info(self, url):
+    def _get_info(self, url):
             self.driver.get(url)
-            # click show more button to get all flights
-            """  try:
-                # Wait for the element with a class containing "show-more-button" to be clickable
-                show_more_button = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, '//*[contains(@class, "show-more-button")]'))
-                )
 
-                # Click the "show more" button
-                show_more_button.click()
-            except:
-                # in case a captcha appears, require input from user so that the for loop pauses and the user can continue the
-                # loop after solving the captcha
-                input("Please solve the captcha then enter anything here to resume scraping.")
-            """
+            sleep(2)
+            # click show more button to get all flights
+            for i in range(2):
+                try:
+                    element = WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'show-more-button')]")))
+                    element.click()
+                except Exception as e:
+                    input("Captcha detected. Press any key to continue...")
+                    element = WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'show-more-button')]")))
+                    element.click()
+                sleep(5)
+
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
 
             start_times, end_times = Scraper.get_times(soup)
             stops = Scraper.get_total_stops(soup)
             prices = Scraper.get_price(soup)
             durations = [Scraper.compute_duration(start_time, end_time) for start_time, end_time in zip(start_times, end_times)]
-            
-            
+            print("Flight info - ", "prices: ", len(prices), ", durations: ", len(durations), ", stops: ", len(stops), ", start_times: ", len(start_times), ", end_times: ", len(end_times))
 
-    def scrape(self, dates, sources, destinations, bidirectional=True):
-        for i, date in tqdm(enumerate(dates)):
-            # close and open driver every 10 days to avoid captcha
-            """ if i % 5 == 0:
-                self.driver.quit()
-                self.driver = webdriver.Chrome(options=self.options) """
-            url = f"{self.prefix_url}{sources[i]}-{destinations[i]}/{date}"
-            url_rev = f"{self.prefix_url}{destinations[i]}-{sources[i]}/{date}"
-            self.get_info(url)
-            if bidirectional:
-                self.get_info(url_rev)
+            return start_times, end_times, stops, prices, durations
             
+            
+    def _save_info(self, output_data_dir, date, source, destination, start_times, end_times, stops, prices, durations):
+        """
+        Save the date to a csv file
+        """
+        filename = "train_data.csv"
+        file_exists = isfile(output_data_dir+filename)
+
+        with open(output_data_dir+filename, 'a', newline='') as f:
+            writer = csv.writer(f, delimiter=";")
+            if not file_exists:
+                writer.writerow(["date", "source", "destination", "start_time", "end_time", "stops", "price", "duration"])
+            for data in zip(start_times, end_times, stops, prices, durations):
+                data = [date, source, destination] + list(data)
+                writer.writerow(data)
+
+
+    @staticmethod
+    def _generate_permutations(dates, locations):
+        # Generate all permutations of locations
+        location_permutations = list(itertools.permutations(locations, 2))
+        # Generate all permutations of dates and location pairs
+        permutations = [(date, loc1, loc2) for date in dates for loc1, loc2 in location_permutations]
+        return permutations
+    
+
+    def scrape(self, output_data_dir, date_format, dates, locations):
+        permuts=Scraper._generate_permutations(dates, locations)
+        print("Scraping data...")
+        for i, permut in enumerate(permuts):
+            print("Iteration: ", i)
+            date, source, destination = permut
+            try:
+                datetime.strptime(date, date_format)
+            except ValueError:
+                print(f"Date {date} is not in format {date_format}")
+                continue
+
+            # close and open driver every 10 days to avoid captcha
+            if i!=0 and i % 5 == 0:
+                self.driver.quit()
+                self.driver = webdriver.Chrome(options=self.options)
+
+            url = f"{self.prefix_url}{source}-{destination}/{date}"
+
+            start_times, end_times, stops, prices, durations = self._get_info(url)
+            self._save_info(output_data_dir, date, source, destination, start_times, end_times, stops, prices, durations)
+            print("Saved data to csv file\n")
+
 
     @staticmethod
     def get_times(soup):
         times = soup('div',class_='vmXl vmXl-mod-variant-large')
-        start_times = [str(s.find_all('span')[0].text)[:-3] for s in times]
-        end_times = [str(s.find_all('span')[2].text)[:-3] for s in times]
+        start_times = [datetime.strptime(str(s.find_all('span')[0].text), "%I:%M %p").strftime("%H:%M") for s in times]
+        end_times = [datetime.strptime(str(s.find_all('span')[2].text), "%I:%M %p").strftime("%H:%M") for s in times]
+        
         return start_times, end_times
     
     @staticmethod
@@ -88,4 +128,19 @@ class Scraper():
         return duration
 
 
-Scraper().scrape(["2024-03-01"], ["VCE"], ["PAR"])
+
+
+@hydra.main(version_base=None, config_path="../configs", config_name="config")
+def main(cfg: DictConfig):
+    scraper = Scraper()
+       
+    dates=list(str.split(cfg.get("dates"), " "))
+    locations=list(str.split(cfg.get("locations"), " "))
+    output_data_dir=cfg.get("output_data_dir")
+    date_format=cfg.get("date_format")
+
+    scraper.scrape(output_data_dir, date_format, dates, locations)
+ 
+
+if __name__ == "__main__":
+    main()
