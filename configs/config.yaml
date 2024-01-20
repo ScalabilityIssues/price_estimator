@@ -1,0 +1,14 @@
+defaults:  
+  - _self_  
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .
+
+split_date: "2024-04-01"
+output_model_dir: "${hydra:runtime.cwd}/out/"
+model_filename: "model.txt"
+data_path: 'data/train_data.csv'

@@ -1,0 +1,16 @@
+name: price_estimator
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11
+  - grpcio
+  - grpcio-tools
+  - pandas
+  - numpy
+  - scikit-learn
+  - lightgbm
+  - hydra-core
+  - matplotlib
