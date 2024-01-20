@@ -1,9 +1,6 @@
+grpcio
+grpcio-tools
 chromedriver-autoinstaller
 selenium
 beautifulsoup4
-pandas
-numpy
-scikit-learn
 hydra-core
-lightgbm
-matplotlib

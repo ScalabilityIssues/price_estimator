@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 import chromedriver_autoinstaller
 import itertools
@@ -43,26 +43,25 @@ class Scraper():
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
 
             start_times, end_times = Scraper.get_times(soup)
-            stops = Scraper.get_total_stops(soup)
             prices = Scraper.get_price(soup)
             durations = [Scraper.compute_duration(start_time, end_time) for start_time, end_time in zip(start_times, end_times)]
-            print("Flight info - ", "prices: ", len(prices), ", durations: ", len(durations), ", stops: ", len(stops), ", start_times: ", len(start_times), ", end_times: ", len(end_times))
+            print("Flight info - ", "prices: ", len(prices), ", durations: ", len(durations), ", start_times: ", len(start_times), ", end_times: ", len(end_times))
 
-            return start_times, end_times, stops, prices, durations
+            return start_times, end_times, prices, durations
             
             
-    def _save_info(self, output_data_dir, date, source, destination, start_times, end_times, stops, prices, durations):
+    def _save_info(self, output_data_dir, data_filename, date, source, destination, start_times, end_times, prices, durations):
         """
         Save the date to a csv file
         """
-        filename = "train_data.csv"
+        filename = data_filename
         file_exists = isfile(output_data_dir+filename)
 
         with open(output_data_dir+filename, 'a', newline='') as f:
             writer = csv.writer(f, delimiter=";")
             if not file_exists:
-                writer.writerow(["date", "source", "destination", "start_time", "end_time", "stops", "price", "duration"])
-            for data in zip(start_times, end_times, stops, prices, durations):
+                writer.writerow(["date", "source", "destination", "start_time", "end_time", "price", "duration"])
+            for data in zip(start_times, end_times, prices, durations):
                 data = [date, source, destination] + list(data)
                 writer.writerow(data)
 
@@ -76,7 +75,7 @@ class Scraper():
         return permutations
     
 
-    def scrape(self, output_data_dir, date_format, dates, locations):
+    def scrape(self, output_data_dir, data_filename, date_format, dates, locations):
         permuts=Scraper._generate_permutations(dates, locations)
         print("Scraping data...")
         for i, permut in enumerate(permuts):
@@ -93,10 +92,10 @@ class Scraper():
                 self.driver.quit()
                 self.driver = webdriver.Chrome(options=self.options)
 
-            url = f"{self.prefix_url}{source}-{destination}/{date}"
+            url = f"{self.prefix_url}{source}-{destination}/{date}?stops=~0&sort=bestflight_a"
 
-            start_times, end_times, stops, prices, durations = self._get_info(url)
-            self._save_info(output_data_dir, date, source, destination, start_times, end_times, stops, prices, durations)
+            start_times, end_times, prices, durations = self._get_info(url)
+            self._save_info(output_data_dir, data_filename, date, source, destination, start_times, end_times, prices, durations)
             print("Saved data to csv file\n")
 
 
@@ -108,11 +107,11 @@ class Scraper():
         
         return start_times, end_times
     
-    @staticmethod
+    """ @staticmethod
     def get_total_stops(soup):
         stops = soup.find_all('span',class_='JWEO-stops-text')
         stops=[0 if s.text == 'nonstop' else int(s.text[0:2]) for s in stops]
-        return stops
+        return stops """
 
     @staticmethod
     def get_price(soup):
@@ -128,19 +127,31 @@ class Scraper():
         return duration
 
 
+def generate_date_range(start_date_str, end_date_str):
+    start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    current_date = start_date
+    date_list = []
+    while current_date <= end_date:
+        date_list.append(str(current_date))
+        current_date += timedelta(days=1)
+    return date_list
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     scraper = Scraper()
        
-    dates=list(str.split(cfg.get("dates"), " "))
+    start_date=cfg.get("start_date")
+    end_date=cfg.get("end_date")
+    dates=generate_date_range(start_date, end_date)
     locations=list(str.split(cfg.get("locations"), " "))
     output_data_dir=cfg.get("output_data_dir")
     date_format=cfg.get("date_format")
+    data_filename=cfg.get("data_filename")
 
-    scraper.scrape(output_data_dir, date_format, dates, locations)
- 
+    scraper.scrape(output_data_dir, data_filename, date_format, dates, locations)
+     
 
 if __name__ == "__main__":
     main()

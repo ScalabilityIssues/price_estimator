@@ -8,9 +8,31 @@ hydra:
   run:  
     dir: .
 
-dates: "2024-03-01 2024-03-02 2024-03-03"
-split_date: "2024-03-03"
-locations: "VCE PAR"
-output_data_dir: "${hydra:runtime.cwd}/data/"
-output_model_dir: "${hydra:runtime.cwd}/out/"
+start_date: "2024-03-01"
+end_date: "2024-05-01"
+locations: "LHR, CDG, FRA, AMS, MAD, BCN, MUC, FCO, ZRH, IST, VIE, DUB, CPH, ARN, OSL, BRU, LIS, ATH, GVA, SVO"
+output_data_dir: "${hydra:runtime.cwd}/data/scraped/"
+data_filename: "train_data.csv"
 date_format: "%Y-%m-%d"
+
+#Mapping: Region - IATA code
+#1. London - LHR
+#2. Paris - CDG
+#3. Frankfurt - FRA
+#4. Amsterdam - AMS
+#5. Madrid - MAD
+#6. Barcelona - BCN
+#7. Munich - MUC
+#8. Rome - FCO
+#9. Zurich - ZRH
+#10. Istanbul - IST
+#11. Vienna - VIE
+#12. Dublin - DUB
+#13. Copenhagen - CPH
+#14. Stockholm - ARN
+#15. Oslo - OSL
+#16. Brussels - BRU
+#17. Lisbon - LIS
+#18. Athens - ATH
+#19. Geneva - GVA
+#20. Moscow - SVO
