@@ -1,0 +1,6 @@
+# @package _global_
+start_date: "2024-06-01"
+end_date: "2024-07-01"
+output_data_dir: "${hydra:runtime.cwd}/data/scraped/"
+locations: "LHR,CDG" #"LHR,CDG,FRA,AMS,MAD,BCN,MUC,FCO,ZRH,IST,VIE,DUB,CPH,ARN,OSL,BRU,LIS,ATH,GVA,SVO"
+date_format: "%Y-%m-%d"

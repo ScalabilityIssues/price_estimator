@@ -1,0 +1,14 @@
+# Documentation: https://hydra.cc/docs/1.3/intro/
+
+defaults:  
+  - _self_
+  - preset: IATA_set1 
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled
+  
+hydra:
+  output_subdir: null  
+  run:  
+    dir: .
+
+run_once: False

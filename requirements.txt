@@ -1,6 +1,5 @@
-grpcio
-grpcio-tools
 chromedriver-autoinstaller
-selenium
-beautifulsoup4
-hydra-core
+selenium==4
+beautifulsoup4==4
+hydra-core==1.3
+minio
