@@ -1,0 +1,21 @@
+defaults:  
+  - _self_  
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .
+
+# path to root directory
+# this requires PROJECT_ROOT environment variable to exist
+# you can replace it with "." if you want the root to be the current working directory
+root_dir: ${oc.env:PROJECT_ROOT}
+
+data_dir: ${root_dir}/data/
+output_model_dir: ${root_dir}/out/
+
+split_date: "2024-04-01"
+date_format: "%Y-%m-%d"
+#data_path: 'data/train_data.csv'

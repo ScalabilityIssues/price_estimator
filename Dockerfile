@@ -1,6 +1,9 @@
-FROM condaforge/miniforge3:latest
+# Build price-estimator image
+
+FROM python:3.11.7-alpine3.19
 WORKDIR /app
 
+COPY ./requirements.txt .
 
-COPY ./requirements.yaml /tmp/requirements.yaml
-RUN mamba env create -f /tmp/requirements.yaml
+RUN pip install --no-cache-dir -r ./requirements.txt
+RUN rm ./requirements.txt
