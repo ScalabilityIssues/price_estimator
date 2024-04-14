@@ -1,42 +1,67 @@
 # file_uploader.py MinIO Python SDK example
 from minio import Minio
-import hydra
 from minio.error import S3Error
-from omegaconf import DictConfig
+import os, rootutils
+from time import ctime
+
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+from src.progress import Progress
 
 
-@hydra.main(config_path="./configs", config_name="config")
-def main(cfg: DictConfig):
-    # Create a client with the MinIO server playground, its access key
-    # and secret key.
-    client = Minio("localhost:9000", #or :9001
-        access_key="root",
-        secret_key="root123",
+def main():
+
+    # MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+    # MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME")
+    # MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+    # MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+    # DATA_DIR = os.getenv("DATA_DIR", "/data")
+
+    MINIO_ENDPOINT = "localhost:9000"
+    MINIO_BUCKET_NAME = "test-bucket"
+    MINIO_ACCESS_KEY = "root"
+    MINIO_SECRET_KEY = "root1234"
+    DATA_DIR = "data/scraped/"
+
+    secure = True
+    if "localhost" in MINIO_ENDPOINT or "127.0.0.1" in MINIO_ENDPOINT:
+        secure = False
+    client = Minio(
+        endpoint=MINIO_ENDPOINT,
+        access_key=MINIO_ACCESS_KEY,
+        secret_key=MINIO_SECRET_KEY,
+        secure=secure,
     )
 
-    # The file to upload, change this path if needed
-    source_file = cfg.get("output_data_dir")+cfg.get("data_filename")
-
-    # The destination bucket and filename on the MinIO server
-    bucket_name = "ml-data-bucket"
-    destination_file = cfg.get("data_filename")
+    # The file to upload
+    file_name = ""
+    source_file = ""
+    if os.path.exists(DATA_DIR):
+        all_files = [DATA_DIR + f for f in os.listdir(DATA_DIR)]
+        latest = max(all_files, key=os.path.getctime)
+        source_file = latest
+        file_name = os.path.basename(latest)
+    else:
+        print("Data directory not found")
+        return
 
     # Make the bucket if it doesn't exist.
-    found = client.bucket_exists(bucket_name)
+    found = client.bucket_exists(MINIO_BUCKET_NAME)
     if not found:
-        client.make_bucket(bucket_name)
-        print("Created bucket", bucket_name)
+        client.make_bucket(MINIO_BUCKET_NAME)
+        print("Created bucket", MINIO_BUCKET_NAME)
     else:
-        print("Bucket", bucket_name, "already exists")
+        print("Bucket", MINIO_BUCKET_NAME, "already exists")
 
     # Upload the file, renaming it in the process
-    client.fput_object(
-        bucket_name, destination_file, source_file,
+    result = client.fput_object(
+        bucket_name=MINIO_BUCKET_NAME,
+        object_name=file_name,
+        file_path=source_file,
+        content_type="application/csv",
+        progress=Progress(),
+        metadata={"creation-date": ctime(os.path.getctime(source_file))},
     )
-    print(
-        source_file, "successfully uploaded as object",
-        destination_file, "to bucket", bucket_name,
-    )
+    print(f"\nCreated {result.object_name} object")
 
 
 if __name__ == "__main__":
