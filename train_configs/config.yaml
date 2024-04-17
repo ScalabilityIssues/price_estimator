@@ -16,6 +16,17 @@ root_dir: ${oc.env:PROJECT_ROOT}
 data_dir: ${root_dir}/data/
 output_model_dir: ${root_dir}/out/
 
-split_date: "2024-04-01"
 date_format: "%Y-%m-%d"
 #data_path: 'data/train_data.csv'
+
+train_params: {
+        "boosting_type": "gbdt",
+        "objective": "regression",
+        "metric": ["l2", "l1"],
+        "num_leaves": 31,
+        "learning_rate": 0.05,
+        "feature_fraction": 0.9,
+        "bagging_fraction": 0.8,
+        "bagging_freq": 5,
+        "verbose": 0,
+}

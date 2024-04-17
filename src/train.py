@@ -1,4 +1,5 @@
 import time
+from typing import Any, Dict
 from sklearn.metrics import mean_squared_error
 import lightgbm as lgb
 import pandas as pd
@@ -7,7 +8,7 @@ import matplotlib.pyplot as plt
 import hydra, os, rootutils
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, SCMode
 from minio import Minio
 from dotenv import load_dotenv
 
@@ -93,7 +94,7 @@ def get_df(file_path: str, date_format: str):
     return df
 
 
-def train(df: pd.DataFrame, output_model_dir: str):
+def train(df: pd.DataFrame, output_model_dir: str, params: Any):
     split_date = str(df.index[int(len(df) * 0.8)].date())
     train = df.loc[:split_date]
     test = df.loc[split_date:]
@@ -106,17 +107,6 @@ def train(df: pd.DataFrame, output_model_dir: str):
     lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
 
     # specify your configurations as a dict
-    params = {
-        "boosting_type": "gbdt",
-        "objective": "regression",
-        "metric": {"l2", "l1"},
-        "num_leaves": 31,
-        "learning_rate": 0.05,
-        "feature_fraction": 0.9,
-        "bagging_fraction": 0.8,
-        "bagging_freq": 5,
-        "verbose": 0,
-    }
 
     print("Starting training...")
     gbm = lgb.train(
@@ -145,7 +135,9 @@ def train(df: pd.DataFrame, output_model_dir: str):
 def main(cfg: DictConfig):
     file_path = get_minio_data(cfg.get("data_dir"))
     df = get_df(file_path, cfg.get("date_format"))
-    train(df, cfg.get("output_model_dir"))
+    train_params = OmegaConf.to_object(cfg.get("train_params"))
+    print(train_params, type(train_params))
+    train(df, cfg.get("output_model_dir"), train_params)
 
 
 if __name__ == "__main__":
