@@ -1,14 +1,13 @@
 import logging
 from dotenv import load_dotenv
 import lightgbm as lgb
-import os, rootutils
+import os
 from concurrent import futures
 import grpc
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-import src.protos.priceest.prices_pb2_grpc as prices_pb2_grpc
-import src.protos.priceest.prices_pb2 as prices_pb2
+import priceest.prices_pb2_grpc as prices_pb2_grpc
+from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
 from minio_client import MinioClient
 from minio.error import S3Error
 
@@ -18,10 +17,10 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
         super().__init__()
         self.model = model
 
-    def EstimatePrice(self, request, context):
+    def EstimatePrice(self, request: EstimatePriceRequest, context) -> EstimatePriceResponse:
         input = ""
         print("REQ: ", request)
-        # price = model.predict(input)
+        price = self.model.predict(input)
         pass
 
 
