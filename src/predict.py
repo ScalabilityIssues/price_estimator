@@ -6,7 +6,7 @@ import grpc
 
 
 import priceest.prices_pb2_grpc as prices_pb2_grpc
-import priceest.prices_pb2 as prices_pb2
+from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
 
 
 class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
@@ -14,10 +14,10 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
         super().__init__()
         self.model = model
 
-    def EstimatePrice(self, request, context):
+    def EstimatePrice(self, request: EstimatePriceRequest, context) -> EstimatePriceResponse:
         input = ""
         print("REQ: ", request)
-        # price = model.predict(input)
+        price = self.model.predict(input)
         pass
 
 
