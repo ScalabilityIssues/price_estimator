@@ -33,3 +33,22 @@ def extract_time_features(original_df: pd.DataFrame) -> pd.DataFrame:
     new_df["weekofyear"] = new_df.index.isocalendar().week
     new_df["weekofyear"] = new_df["weekofyear"].astype("int32")
     return new_df
+
+
+def build_flight_df(
+    df: pd.DataFrame,
+    date_format: str = "%Y-%m-%d",
+    hour_format: str = "%H:%M%z",
+    utc: bool = True,
+) -> pd.DataFrame:
+    df["date"] = pd.to_datetime(df["date"], format=date_format)
+    df = df.set_index("date")
+    df["source"] = df["source"].astype("category")
+    df["destination"] = df["destination"].astype("category")
+
+    df["start_time"] = pd.to_datetime(df["start_time"], format=hour_format, utc=utc)
+    df["end_time"] = pd.to_datetime(df["end_time"], format=hour_format, utc=utc)
+
+    df = extract_time_features(df)
+    df = df.drop(["start_time", "end_time"], axis=1)
+    return df

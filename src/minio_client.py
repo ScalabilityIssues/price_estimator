@@ -56,7 +56,7 @@ class MinioClient:
         )
         print(f"\nCreated {result.object_name} object")
 
-    def download_file(self, dest_dir, bucket_name, file_name="", latest=True):
+    def download_file(self, bucket_name, dest_dir, file_name="", latest=True):
         found = self.client.bucket_exists(bucket_name)
         if not found:
             print("Bucket", bucket_name, "not found")

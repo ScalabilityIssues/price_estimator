@@ -11,24 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 from minio_client import MinioClient
 from minio.error import S3Error
 from dotenv import load_dotenv
-from utils import extract_time_features, rmse
-
-
-def get_df_from_csv(data_dir: str, file_name: str, date_format: str):
-    df = pd.read_csv(data_dir + file_name, sep=";", header=0)
-    df["date"] = pd.to_datetime(df["date"], format=date_format)
-    df = df.set_index("date")
-    df["source"] = df["source"].astype("category")
-    df["destination"] = df["destination"].astype("category")
-
-    df["start_time"] = pd.to_datetime(df["start_time"], format="%H:%M%z", utc=True)
-    df["end_time"] = pd.to_datetime(df["end_time"], format="%H:%M%z", utc=True)
-
-    df = extract_time_features(df)
-    # Drop redundant or useless columns
-    df = df.drop(["start_time", "end_time", "currency"], axis=1)
-    df["price"] = df["price"].astype("float32")
-    return df
+from utils import rmse, build_flight_df
 
 
 def train(df: pd.DataFrame, params: Any):
@@ -95,11 +78,12 @@ def main(cfg: DictConfig):
         print("No file found")
         return
 
-    df = get_df_from_csv(
-        data_dir=train_data_dir,
-        file_name=train_file_obj.object_name,
-        date_format=date_format,
-    )
+    df = pd.read_csv(train_data_dir + train_file_obj.object_name, sep=";", header=0)
+    df = build_flight_df(df, date_format=date_format)
+
+    # Drop redundant or useless columns
+    df = df.drop(["currency"], axis=1)
+    df["price"] = df["price"].astype("float32")
 
     model: lgb.Booster = train(df, train_params)
     model_name = "model" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".txt"

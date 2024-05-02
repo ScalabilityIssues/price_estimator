@@ -4,8 +4,9 @@ import lightgbm as lgb
 import os
 from concurrent import futures
 import grpc
-
-
+import numpy as np
+import pandas as pd
+from utils import build_flight_df
 import priceest.prices_pb2_grpc as prices_pb2_grpc
 from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
 from minio_client import MinioClient
@@ -17,11 +18,37 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
         super().__init__()
         self.model = model
 
-    def EstimatePrice(self, request: EstimatePriceRequest, context) -> EstimatePriceResponse:
-        input = ""
-        print("REQ: ", request)
-        price = self.model.predict(input)
-        pass
+    def EstimatePrice(
+        self, request: EstimatePriceRequest, context
+    ) -> EstimatePriceResponse:
+
+        source = request.flight.source
+        destination = request.flight.destination
+        departure_time = request.flight.departure_time.ToDatetime()
+        arrival_time = request.flight.arrival_time.ToDatetime()
+
+        date = departure_time.strftime("%Y-%m-%d")
+        start_time = departure_time.strftime("%H:%M%z")
+        end_time = arrival_time.strftime("%H:%M%z")
+
+        flight_detail = {
+            "date": [date],
+            "source": [source],
+            "destination": [destination],
+            "start_time": [start_time],
+            "end_time": [end_time],
+        }
+
+        df = build_flight_df(pd.DataFrame(flight_detail))
+        price = self.model.predict(df)
+
+        response = EstimatePriceResponse()
+        response.price.currency_code = "USD"
+        response.price.units, response.price.nanos = (
+            int(np.modf(price)[1]),
+            int(np.modf(price)[0]),
+        )
+        return response
 
 
 def serve(model: lgb.Booster):

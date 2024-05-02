@@ -8,9 +8,7 @@ hydra:
   run:  
     dir: .
 
-# path to root directory
-# this requires PROJECT_ROOT environment variable to exist
-# you can replace it with "." if you want the root to be the current working directory
+
 cwd: ${hydra:runtime.cwd}
 
 data_dir: ${cwd}/data/
