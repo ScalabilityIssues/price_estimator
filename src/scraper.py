@@ -1,59 +1,21 @@
 import asyncio
-from typing import Any, Dict, List
-import hydra, csv, os
+from typing import Dict
+import hydra, os
 from datetime import datetime
 import json
-import rootutils
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser
-from src.utils import (
+from omegaconf import DictConfig
+from utils_scraper import (
     generate_date_range,
     generate_permutations,
     get_direct_flights_mask,
     get_flight_price,
     get_flight_times,
     get_timezone,
+    save_info,
 )
-
-from omegaconf import DictConfig
-
-
-def save_info(
-    dest_dir: str,
-    filename: str,
-    results: List[List[Any]],
-):
-    with open(dest_dir + filename, "x", newline="") as f:
-        writer = csv.writer(f, delimiter=";")
-        writer.writerow(
-            [
-                "date",
-                "source",
-                "destination",
-                "start_time",
-                "end_time",
-                "price",
-                "currency",
-            ]
-        )
-        for (
-            date,
-            source,
-            destination,
-            start_times,
-            end_times,
-            prices,
-            currencies,
-        ) in results:
-            for flight_data in zip(start_times, end_times, prices, currencies):
-                row = [
-                    date,
-                    source,
-                    destination,
-                ] + list(flight_data)
-                writer.writerow(row)
 
 
 async def scrape(
@@ -124,7 +86,6 @@ async def scrape(
 
 
 async def main(cfg: DictConfig):
-
     dir = os.listdir(cfg.get("output_data_dir"))
     if not cfg.get("run_once") or len(dir) == 0:
 

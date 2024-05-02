@@ -17,19 +17,20 @@ services:
       - ./data/minIO/:/data
     command: server /data --console-address ":9001"
 
-  #ml-data-scarper:
-  #  build: .
-  #  depends_on:
-  #    - minio-db
-  #  container_name: ml-data-scraper
-  #  restart: always
-  #  volumes:
-  #    - ./data/scraped/:/data
-  #    - scraper_configs:/configs
-  #  environment:
-  #    MINIO_ENDPOINT: localhost:9000
-  #    MINIO_BUCKET_NAME: ml-data-bucket
-  #    MINIO_ACCESS_KEY: root
-  #    MINIO_SECRET_KEY: root1234
-  #    DATA_DIR: /data
-  #  entrypoint: [ "bash", "-c", "python3 src/scraper.py && python3 src/file_uploader.py" ]   
+  ml-data-scarper:
+    build: .
+    depends_on:
+      - minio-db
+    container_name: ml-data-scraper
+    restart: always
+    volumes:
+      - ./data/scraped:/app/data/scraped
+      - ./scraper_configs:/app/scraper_configs
+      - ./src:/app/src
+      - ./logs:/app/logs
+    environment:
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_BUCKET_NAME: ml-data-bucket
+      MINIO_ACCESS_KEY: root
+      MINIO_SECRET_KEY: root1234
+      DATA_DIR: /data/scraped

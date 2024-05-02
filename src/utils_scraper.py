@@ -1,4 +1,5 @@
-from typing import List, Tuple
+import csv
+from typing import Any, List, Tuple
 from zoneinfo import ZoneInfo
 
 from datetime import datetime, timedelta
@@ -105,3 +106,39 @@ def generate_permutations(
         (date, loc1, loc2) for date in dates for loc1, loc2 in location_permutations
     ]
     return permutations
+
+
+def save_info(
+    dest_dir: str,
+    filename: str,
+    results: List[List[Any]],
+):
+    with open(dest_dir + filename, "x", newline="") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerow(
+            [
+                "date",
+                "source",
+                "destination",
+                "start_time",
+                "end_time",
+                "price",
+                "currency",
+            ]
+        )
+        for (
+            date,
+            source,
+            destination,
+            start_times,
+            end_times,
+            prices,
+            currencies,
+        ) in results:
+            for flight_data in zip(start_times, end_times, prices, currencies):
+                row = [
+                    date,
+                    source,
+                    destination,
+                ] + list(flight_data)
+                writer.writerow(row)

@@ -11,16 +11,13 @@ hydra:
   run:  
     dir: .
 
-# path to root directory
-# this requires PROJECT_ROOT environment variable to exist
-# you can replace it with "." if you want the root to be the current working directory
-root_dir: ${oc.env:PROJECT_ROOT}
+
+cwd: ${hydra:runtime.cwd}
 
 # path to data directory
-output_data_dir: ${root_dir}/data/scraped/
+output_data_dir: ${cwd}/data/scraped/
+available_airports: ${cwd}/scraper_configs/available_codes.json
 
-available_airports: ${root_dir}/scraper_configs/available_codes.json
-
-run_once: False
-headless: False
+run_once: True
+headless: True
 num_workers: 2
