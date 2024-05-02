@@ -38,4 +38,4 @@ if __name__ == "__main__":
     try:
         main()
     except S3Error as exc:
-        print("Error occurred.", exc)
+        print("Error occurred in MinIO", exc)

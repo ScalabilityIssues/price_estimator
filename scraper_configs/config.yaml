@@ -23,3 +23,4 @@ available_airports: ${root_dir}/scraper_configs/available_codes.json
 
 run_once: False
 headless: False
+num_workers: 2
