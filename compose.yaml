@@ -22,7 +22,7 @@ services:
     depends_on:
       - minio-db
     container_name: ml-data-scraper
-    restart: always
+    restart: on-failure
     volumes:
       - ./data/scraped:/app/data/scraped
       - ./scraper_configs:/app/scraper_configs
@@ -34,3 +34,5 @@ services:
       MINIO_ACCESS_KEY: root
       MINIO_SECRET_KEY: root1234
       DATA_DIR: /data/scraped
+    entrypoint: [ "bash", "-c", "python3 src/scraper.py && python3 src/file_uploader.py" ]
+    

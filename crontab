@@ -1,2 +1,0 @@
-0 0 * * * python3 src/scraper.py && python3 src/file_uploader.py >> /app/logs/logfile.txt
- 
