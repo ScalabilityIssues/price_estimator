@@ -7,6 +7,7 @@ import json
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser
 from omegaconf import DictConfig
+from minio_client import MinioClient
 from utils_scraper import (
     generate_date_range,
     generate_permutations,
@@ -114,10 +115,9 @@ async def main(cfg: DictConfig):
             iata_codes_mapping = json.load(f)
 
         # Scrape the data
+        results = []
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=headless)
-            results = []
-
             print("Scraping data in chunks...")
             print(
                 "N. of data to retrieve:",
@@ -149,8 +149,32 @@ async def main(cfg: DictConfig):
                 )
             await browser.close()
 
-            save_info(output_data_dir, data_filename, results)
-            print(f"Data saved in {output_data_dir + data_filename}")
+        save_info(output_data_dir, data_filename, results)
+        print(f"Data saved in {output_data_dir + data_filename}")
+
+        MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+        MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME")
+        MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+        MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+        DATA_DIR = os.getenv("DATA_DIR", "/data/scraped")
+
+        # MINIO_ENDPOINT = "localhost:9000"
+        # MINIO_BUCKET_NAME = "test-bucket"
+        # MINIO_ACCESS_KEY = "root"
+        # MINIO_SECRET_KEY = "root1234"
+        # DATA_DIR = "data/scraped/"
+        client = MinioClient(
+            MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
+        )
+        client.upload_file(
+            bucket_name=MINIO_BUCKET_NAME,
+            source_dir=DATA_DIR,
+            latest=True,
+            content_type="application/csv",
+        )
+        print(
+            f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME} from {DATA_DIR}"
+        )
 
     else:
         print("Data already exists, set `run_once` to false to scrape again.")

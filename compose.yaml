@@ -1,12 +1,13 @@
 version: '3.8'
-services:
+name: simurgh-dev
 
+services:
   minio-db:
     # https://hub.docker.com/r/minio/minio
     # https://min.io/docs/minio/container/index.html
     image: minio/minio
     container_name: minio-db
-    restart: always
+    restart: on-failure
     ports:
       - 9000:9000
       - 9001:9001
@@ -27,12 +28,11 @@ services:
       - ./data/scraped:/app/data/scraped
       - ./scraper_configs:/app/scraper_configs
       - ./src:/app/src
-      - ./logs:/app/logs
     environment:
       MINIO_ENDPOINT: localhost:9000
       MINIO_BUCKET_NAME: ml-data-bucket
       MINIO_ACCESS_KEY: root
       MINIO_SECRET_KEY: root1234
       DATA_DIR: /data/scraped
-    entrypoint: [ "bash", "-c", "python3 src/scraper.py && python3 src/file_uploader.py" ]
+    entrypoint: [ "bash", "-c", "python3 src/scraper.py" ]
     
