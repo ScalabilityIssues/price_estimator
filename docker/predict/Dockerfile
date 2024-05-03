@@ -13,7 +13,6 @@ RUN python3 -m grpc_tools.protoc \
     proto/priceest/prices.proto proto/commons/*.proto
 
 
-
 FROM base AS app
 
 RUN apt-get update && apt-get install -y \
@@ -23,11 +22,9 @@ RUN apt-get update && apt-get install -y \
 COPY ./requirements.txt .
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-COPY ./src .
 COPY --from=build-proto /app/priceest priceest
 COPY --from=build-proto /app/commons commons
 
-RUN mkdir -p /app/out
 
 EXPOSE 50051
 

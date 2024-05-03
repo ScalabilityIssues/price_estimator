@@ -1,0 +1,41 @@
+version: '3.8'
+name: simurgh-dev
+
+services:
+  ml-training:
+    build:
+      context: .
+      dockerfile: ./docker/train/Dockerfile
+      
+    container_name: ml-training
+    restart: on-failure
+    volumes:
+      - ./data:/app/data
+      - ./train_configs:/app/train_configs
+      - ./src:/app/src
+      - ./out:/app/out
+    environment:
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_BUCKET_NAME_TRAINING: ml-data-bucket
+      MINIO_BUCKET_NAME_MODEL: ml-model-bucket
+      MINIO_ACCESS_KEY: root
+      MINIO_SECRET_KEY: root1234
+    entrypoint: [ "bash", "-c", "python3 src/train.py" ]
+    
+  ml-predict:
+    build:
+      context: .
+      dockerfile: ./docker/predict/Dockerfile
+    container_name: ml-predict
+    restart: on-failure
+    volumes:
+      - ./src:/app/src
+      - ./out:/app/out
+    environment:
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_BUCKET_NAME_TRAINING: ml-data-bucket
+      MINIO_BUCKET_NAME_MODEL: ml-model-bucket
+      MINIO_ACCESS_KEY: root
+      MINIO_SECRET_KEY: root1234
+      MODEL_PATH: out/
+    entrypoint: [ "bash", "-c", "python3 src/predict.py" ]

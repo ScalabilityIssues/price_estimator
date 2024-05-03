@@ -1,5 +1,4 @@
 import logging
-from dotenv import load_dotenv
 import lightgbm as lgb
 import os
 from concurrent import futures
@@ -28,8 +27,8 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
         arrival_time = request.flight.arrival_time.ToDatetime()
 
         date = departure_time.strftime("%Y-%m-%d")
-        start_time = departure_time.strftime("%H:%M%z")
-        end_time = arrival_time.strftime("%H:%M%z")
+        start_time = departure_time.strftime("%H:%M")
+        end_time = arrival_time.strftime("%H:%M")
 
         flight_detail = {
             "date": [date],
@@ -39,14 +38,15 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
             "end_time": [end_time],
         }
 
-        df = build_flight_df(pd.DataFrame(flight_detail))
+        df = build_flight_df(pd.DataFrame(flight_detail), hour_format="%H:%M")
         price = self.model.predict(df)
 
         response = EstimatePriceResponse()
         response.price.currency_code = "USD"
+        decimal, integer = np.modf(price)
         response.price.units, response.price.nanos = (
-            int(np.modf(price)[1]),
-            int(np.modf(price)[0]),
+            int(decimal[0]),
+            int(integer[0]),
         )
         return response
 
@@ -66,7 +66,6 @@ def serve(model: lgb.Booster):
 if __name__ == "__main__":
     try:
         logging.basicConfig()
-        load_dotenv()
         # MODEL_PATH = os.getenv("MODEL_PATH")
         # MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
         # MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
@@ -78,7 +77,7 @@ if __name__ == "__main__":
         MINIO_ACCESS_KEY = "root"
         MINIO_SECRET_KEY = "root1234"
         MODEL_PATH = "out/"
-        if MODEL_PATH and os.path.exists(MODEL_PATH):
+        """ if MODEL_PATH and os.path.exists(MODEL_PATH):
             client = MinioClient(
                 MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
             )
@@ -93,6 +92,8 @@ if __name__ == "__main__":
                 model = lgb.Booster(model_file=MODEL_PATH + file.object_name)
                 serve(model)
         else:
-            print("Model directory not found")
+            print("Model directory not found") """
+        model = lgb.Booster(model_file=MODEL_PATH + "test_model.txt")
+        serve(model)
     except S3Error as exc:
         print("Error occurred in MinIO", exc)
