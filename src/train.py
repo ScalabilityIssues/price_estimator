@@ -8,7 +8,7 @@ import hydra, os
 from omegaconf import DictConfig, OmegaConf
 from minio_client import MinioClient
 from minio.error import S3Error
-from utils import rmse, build_flight_df
+from utils_prediction import rmse, build_flight_df
 
 
 def train(df: pd.DataFrame, params: Any):
@@ -52,9 +52,6 @@ def train(df: pd.DataFrame, params: Any):
 
 @hydra.main(version_base=None, config_path="../configs/train", config_name="config")
 def main(cfg: DictConfig):
-
-    dir = os.listdir(cfg.get("output_model_dir"))
-
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
     MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
     MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
@@ -62,27 +59,59 @@ def main(cfg: DictConfig):
     MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
     client = MinioClient(MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
 
-    if client.is_empty(MINIO_BUCKET_NAME_TRAINING):
-        print("No training data found in MinIO bucket", MINIO_BUCKET_NAME_TRAINING)
-    elif (
-        not cfg.get("run_once")
-        or len(dir) == 0
-        or client.is_empty(MINIO_BUCKET_NAME_MODEL)
-    ):
+    output_model_dir = os.listdir(cfg.get("output_model_dir"))
+    if len(output_model_dir) != 0:
+        latest_file = max([f for f in output_model_dir], key=os.path.getctime)
+        if not client.exists_file(MINIO_BUCKET_NAME_TRAINING, latest_file):
+            print("New files found, uploading to MinIO bucket...")
+            client.upload_file(
+                bucket_name=MINIO_BUCKET_NAME_TRAINING,
+                source_dir=output_model_dir,
+                file_name=latest_file,
+                content_type="application/csv",
+            )
+            print(
+                f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_TRAINING} from {output_model_dir}"
+            )
+    elif not client.is_empty(MINIO_BUCKET_NAME_MODEL) and not cfg.get("force_training"):
+        print("No model data found, downloading from MinIO bucket...")
+        client.download_file(
+            dest_dir=output_model_dir,
+            bucket_name=MINIO_BUCKET_NAME_MODEL,
+            latest=True,
+        )
+        print(f"Files downloaded successfully to {output_model_dir}")
+    else:
+        print(
+            "No data found in MinIO bucket or `force_training=True`, starting training..."
+        )
         train_data_dir = cfg.get("data_dir")
         model_out_dir = cfg.get("model_out_dir")
         date_format = cfg.get("date_format")
         train_params = OmegaConf.to_object(cfg.get("train_params"))
 
-        train_file_obj = client.download_file(
-            dest_dir=train_data_dir, bucket_name=MINIO_BUCKET_NAME_TRAINING, latest=True
-        )
+        train_filename = None
+        if len(os.listdir(train_data_dir)) == 0:
+            print(
+                f"No training data found in the directory {train_data_dir}, trying to download from MinIO..."
+            )
+            train_file_obj = client.download_file(
+                dest_dir=train_data_dir,
+                bucket_name=MINIO_BUCKET_NAME_TRAINING,
+                latest=True,
+            )
+            if not train_file_obj:
+                print("No training data file found")
+                return
+            else:
+                print(f"Training data downloaded successfully to {train_data_dir}")
+                train_filename = train_file_obj.object_name
+        else:
+            train_filename = max(
+                [f for f in os.listdir(train_data_dir)], key=os.path.getctime
+            )
 
-        if not train_file_obj:
-            print("No training data file found")
-            return
-
-        df = pd.read_csv(train_data_dir + train_file_obj.object_name, sep=";", header=0)
+        df = pd.read_csv(train_data_dir + train_filename, sep=";", header=0)
         df = build_flight_df(df, date_format=date_format)
 
         # Drop redundant or useless columns
@@ -104,8 +133,6 @@ def main(cfg: DictConfig):
         print(
             f"Model uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_MODEL} from {model_out_dir}"
         )
-    else:
-        print("Model already exists, set `run_once` to false to train again.")
 
 
 if __name__ == "__main__":

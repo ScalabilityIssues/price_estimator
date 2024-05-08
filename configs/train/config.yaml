@@ -11,13 +11,13 @@ hydra:
 
 cwd: ${hydra:runtime.cwd}
 
-data_dir: ${cwd}/data/
+data_dir: ${cwd}/data/scraped/
 output_model_dir: ${cwd}/out/
 
 date_format: "%Y-%m-%d"
 #data_path: 'data/train_data.csv'
 
-run_once: True
+force_training: True
 
 train_params: {
         "boosting_type": "gbdt",

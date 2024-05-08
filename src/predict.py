@@ -5,8 +5,10 @@ import os
 from concurrent import futures
 import grpc
 import numpy as np
+from omegaconf import DictConfig
 import pandas as pd
-from utils import build_flight_df
+import hydra
+from utils_prediction import build_flight_df
 import priceest.prices_pb2_grpc as prices_pb2_grpc
 from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
 from minio_client import MinioClient
@@ -64,32 +66,39 @@ def serve(model: lgb.Booster):
     server.wait_for_termination()
 
 
-if __name__ == "__main__":
-    try:
-        logging.basicConfig()
-        load_dotenv()
-        MODEL_PATH = os.getenv("MODEL_PATH")
-        MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-        MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
-        MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-        MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+@hydra.main(version_base="1.3", config_path="../configs/predict", config_name="config")
+def main(cfg: DictConfig):
+    logging.basicConfig()
+    load_dotenv()
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+    MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 
-        if MODEL_PATH and os.path.exists(MODEL_PATH):
-            client = MinioClient(
-                MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
-            )
-            file = client.download_file(
-                dest_dir=MODEL_PATH,
-                bucket_name=MINIO_BUCKET_NAME_MODEL,
-                latest=True,
-            )
-            if not file:
-                print("No model found")
-            else:
-                model = lgb.Booster(model_file=MODEL_PATH + file.object_name)
-                serve(model)
+    model_path = cfg.get("model_path")
+    if len(os.listdir(model_path)) != 0:
+        print("Model found")
+        latest = model_path + max(
+            [f for f in os.listdir(model_path)], key=os.path.getctime
+        )
+        model = lgb.Booster(model_file=latest)
+        serve(model)
+    else:
+        print("Model not found, trying to download from MinIO...")
+        client = MinioClient(
+            MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
+        )
+        file = client.download_file(
+            dest_dir=model_path,
+            bucket_name=MINIO_BUCKET_NAME_MODEL,
+            latest=True,
+        )
+        if not file:
+            print("No model found in MinIO bucket, exiting...")
         else:
-            print("Model directory not found")
+            model = lgb.Booster(model_file=model_path + file.object_name)
+            serve(model)
 
-    except S3Error as exc:
-        print("Error occurred in MinIO", exc)
+
+if __name__ == "__main__":
+    main()

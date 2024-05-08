@@ -113,11 +113,11 @@ async def main(cfg: DictConfig):
         MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
     )
 
-    # Check if the latest file already exists in MinIO, otherwise upload it
     data_dir = os.listdir(cfg.get("output_data_dir"))
     if len(data_dir) != 0:
         latest_file = max([f for f in data_dir], key=os.path.getctime)
         if not client.exists_file(MINIO_BUCKET_NAME_TRAINING, latest_file):
+            print("New files found, uploading to MinIO bucket...")
             client.upload_file(
                 bucket_name=MINIO_BUCKET_NAME_TRAINING,
                 source_dir=data_dir,
@@ -127,9 +127,20 @@ async def main(cfg: DictConfig):
             print(
                 f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_TRAINING} from {data_dir}"
             )
-
-    # Check if there are data already scraped, if not scrape the data and upload it to MinIO
-    if not cfg.get("run_once") or len(data_dir) == 0:
+    elif not client.is_empty(MINIO_BUCKET_NAME_TRAINING) and not cfg.get(
+        "force_scraping"
+    ):
+        print("No scraping data found, downloading from MinIO bucket...")
+        client.download_file(
+            dest_dir=data_dir,
+            bucket_name=MINIO_BUCKET_NAME_TRAINING,
+            latest=True,
+        )
+        print(f"Files downloaded successfully to {data_dir}")
+    else:
+        print(
+            "No data found in MinIO bucket or `force_scraping=True`, starting scraping..."
+        )
 
         # Get the configuration parameters
         start_date = cfg.get("start_date")
@@ -191,6 +202,7 @@ async def main(cfg: DictConfig):
 
         save_info(data_dir, results)
         print(f"Data saved in {data_dir}")
+
         client.upload_file(
             bucket_name=MINIO_BUCKET_NAME_TRAINING,
             source_dir=data_dir,
@@ -200,9 +212,6 @@ async def main(cfg: DictConfig):
         print(
             f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_TRAINING} from {data_dir}"
         )
-
-    else:
-        print("Data already exists, set `run_once` to false to scrape again.")
 
 
 if __name__ == "__main__":

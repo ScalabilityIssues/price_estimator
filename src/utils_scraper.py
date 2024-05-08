@@ -175,7 +175,6 @@ def save_info(
 
     Args:
         dest_dir (str): The destination directory where the file will be saved.
-        filename (str): The name of the file.
         results (List[List[Any]]): A list of flight information.
 
     Returns:
