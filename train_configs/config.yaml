@@ -1,0 +1,32 @@
+defaults:  
+  - _self_  
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .
+
+
+cwd: ${hydra:runtime.cwd}
+
+data_dir: ${cwd}/data/
+output_model_dir: ${cwd}/out/
+
+date_format: "%Y-%m-%d"
+#data_path: 'data/train_data.csv'
+
+run_once: True
+
+train_params: {
+        "boosting_type": "gbdt",
+        "objective": "regression",
+        "metric": ["l2", "l1"],
+        "num_leaves": 31,
+        "learning_rate": 0.05,
+        "feature_fraction": 0.9,
+        "bagging_fraction": 0.8,
+        "bagging_freq": 5,
+        "verbose": 0,
+}
