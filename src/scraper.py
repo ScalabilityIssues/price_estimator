@@ -30,7 +30,24 @@ async def scrape(
     prefix_url: str = "https://www.kayak.com/flights/",
     timeout: int = 60000,
 ):
-    # Generate the url, stops=~0 means direct flights only
+    """
+    Scrapes flight data from Kayak website.
+
+    Args:
+        task_id (int): The ID of the task.
+        browser (Browser): The browser instance used for scraping.
+        date (str): The date of the flight.
+        source (str): The source airport code.
+        destination (str): The destination airport code.
+        iata_codes_mapping (Dict[str, str]): A dictionary mapping airport codes to timezones.
+        locale (str, optional): The locale to use for the browser. Defaults to "en-US".
+        prefix_url (str, optional): The prefix URL for the flight search. Defaults to "https://www.kayak.com/flights/".
+        timeout (int, optional): The timeout for page navigation. Defaults to 60000 (60 seconds).
+
+    Returns:
+        List: A list containing the scraped flight data, including date, source, destination, start times, end times, prices, and currencies.
+    """
+    # Generate the url, stops=~0 means approx direct flights only
     url = f"{prefix_url}{source}-{destination}/{date}?stops=~0&sort=bestflight_a"
 
     # Initialize the browser context
@@ -88,7 +105,23 @@ async def scrape(
 
 async def main(cfg: DictConfig):
     dir = os.listdir(cfg.get("output_data_dir"))
-    if not cfg.get("run_once") or len(dir) == 0:
+    latest_file = max([f for f in dir], key=os.path.getctime)
+
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+    MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME")
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+    DATA_DIR = os.getenv("DATA_DIR", "/data/scraped")
+
+    client = MinioClient(
+        MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
+    )
+
+    if (
+        not cfg.get("run_once")
+        or len(dir) == 0
+        or client.check_file_exists(MINIO_BUCKET_NAME, latest_file)
+    ):
 
         # Get the configuration parameters
         start_date = cfg.get("start_date")
@@ -102,6 +135,7 @@ async def main(cfg: DictConfig):
             print(f"Invalid date format. Please use the format {date_format}")
             return
 
+        # Generate all the date range and the possible flight permutations
         dates = generate_date_range(start_date, end_date)
         locations = list(str.split(cfg.get("locations"), ","))
         permutations = generate_permutations(dates, locations)
@@ -152,20 +186,6 @@ async def main(cfg: DictConfig):
         save_info(output_data_dir, data_filename, results)
         print(f"Data saved in {output_data_dir + data_filename}")
 
-        MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-        MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME")
-        MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-        MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-        DATA_DIR = os.getenv("DATA_DIR", "/data/scraped")
-
-        # MINIO_ENDPOINT = "localhost:9000"
-        # MINIO_BUCKET_NAME = "test-bucket"
-        # MINIO_ACCESS_KEY = "root"
-        # MINIO_SECRET_KEY = "root1234"
-        # DATA_DIR = "data/scraped/"
-        client = MinioClient(
-            MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
-        )
         client.upload_file(
             bucket_name=MINIO_BUCKET_NAME,
             source_dir=DATA_DIR,

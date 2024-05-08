@@ -14,11 +14,20 @@ from bs4 import BeautifulSoup
 def get_flight_times(
     soup: BeautifulSoup, direct_flights_mask: List[int], tz_start: str, tz_end: str
 ) -> Tuple[List[str], List[str]]:
+    """
+    Extracts the start and end times of flights from the given BeautifulSoup object.
+
+    Args:
+        soup (BeautifulSoup): The BeautifulSoup object containing the flight information.
+        direct_flights_mask (List[int]): A list of binary values indicating whether each flight is direct or not.
+        tz_start (str): The timezone of the departure location.
+        tz_end (str): The timezone of the destination location.
+
+    Returns:
+        Tuple[List[str], List[str]]: A tuple containing two lists - the start times and end times of the flights.
+    """
     times = soup("div", class_="vmXl vmXl-mod-variant-large")
 
-    # Find all span tags and extract the text
-    # Parse it as datetime in the format %I:%M %p (12-hour format)
-    # Convert it to 24-hour format
     start_times = []
     end_times = []
     for mask, s in zip(direct_flights_mask, times):
@@ -53,6 +62,15 @@ def get_flight_times(
 def get_direct_flights_mask(
     soup: BeautifulSoup,
 ):
+    """
+    Determines whether each flight in the given BeautifulSoup object is a direct flight or not.
+
+    Args:
+        soup (BeautifulSoup): The BeautifulSoup object containing the flight information.
+
+    Returns:
+        List[int]: A list of binary values indicating whether each flight is direct or not.
+    """
     direct_flights = soup.find_all("span", class_="JWEO-stops-text")
     direct_flights = [1 if "nonstop" in d.text else 0 for d in direct_flights]
     return direct_flights
@@ -61,6 +79,16 @@ def get_direct_flights_mask(
 def get_flight_price(
     soup: BeautifulSoup, direct_flights_mask: List[int]
 ) -> Tuple[List[float], List[str]]:
+    """
+    Extracts the prices and currencies of flights from the given BeautifulSoup object.
+
+    Args:
+        soup (BeautifulSoup): The BeautifulSoup object containing the flight information.
+        direct_flights_mask (List[int]): A list of binary values indicating whether each flight is direct or not.
+
+    Returns:
+        Tuple[List[float], List[str]]: A tuple containing two lists - the prices and currencies of the flights.
+    """
     prices_str = soup.find_all("div", class_="f8F1-price-text")
     prices = []
     currencies = []
@@ -74,6 +102,18 @@ def get_flight_price(
 
 
 def get_timezone(place_name: str):
+    """
+    Retrieves the timezone of a given location using its name.
+
+    Args:
+        place_name (str): The name of the location.
+
+    Returns:
+        str: The timezone of the location.
+
+    Raises:
+        ValueError: If the location is not found.
+    """
     geolocator = Nominatim(user_agent="tz_finder")
     location = geolocator.geocode(place_name)
 
@@ -86,6 +126,16 @@ def get_timezone(place_name: str):
 
 
 def generate_date_range(start_date_str: str, end_date_str: str) -> List[str]:
+    """
+    Generates a list of dates within a given date range.
+
+    Args:
+        start_date_str (str): The start date of the range in the format "YYYY-MM-DD".
+        end_date_str (str): The end date of the range in the format "YYYY-MM-DD".
+
+    Returns:
+        List[str]: A list of dates within the specified range.
+    """
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     current_date = start_date
@@ -99,9 +149,17 @@ def generate_date_range(start_date_str: str, end_date_str: str) -> List[str]:
 def generate_permutations(
     dates: List[str], locations: List[str]
 ) -> List[Tuple[str, str, str]]:
-    # Generate all permutations of locations
+    """
+    Generates all possible permutations of dates and locations.
+
+    Args:
+        dates (List[str]): A list of dates.
+        locations (List[str]): A list of locations.
+
+    Returns:
+        List[Tuple[str, str, str]]: A list of tuples representing the permutations of dates and locations.
+    """
     location_permutations = list(itertools.permutations(locations, 2))
-    # Generate all permutations of dates and location pairs
     permutations = [
         (date, loc1, loc2) for date in dates for loc1, loc2 in location_permutations
     ]
@@ -113,6 +171,17 @@ def save_info(
     filename: str,
     results: List[List[Any]],
 ):
+    """
+    Saves flight information to a CSV file.
+
+    Args:
+        dest_dir (str): The destination directory where the file will be saved.
+        filename (str): The name of the file.
+        results (List[List[Any]]): A list of flight information.
+
+    Returns:
+        None
+    """
     with open(dest_dir + filename, "x", newline="") as f:
         writer = csv.writer(f, delimiter=";")
         writer.writerow(
