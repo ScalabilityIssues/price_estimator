@@ -11,6 +11,16 @@ from utils import rmse, build_flight_df
 
 
 def train(df: pd.DataFrame, params: Any):
+    """
+    Train a LightGBM model using the provided DataFrame and parameters.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the training data.
+        params (Any): The parameters for the LightGBM model.
+
+    Returns:
+        model: The trained LightGBM model.
+    """
     split_date = str(df.index[int(len(df) * 0.8)].date())
     train = df.loc[:split_date]
     test = df.loc[split_date:]
@@ -22,8 +32,6 @@ def train(df: pd.DataFrame, params: Any):
     lgb_train = lgb.Dataset(X_train, y_train)
     lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
 
-    # specify your configurations as a dict
-
     print("Starting training...")
     model = lgb.train(
         params,
@@ -33,11 +41,8 @@ def train(df: pd.DataFrame, params: Any):
         callbacks=[lgb.early_stopping(stopping_rounds=5)],
         categorical_feature="auto",
     )
-    """ ax = lgb.plot_importance(gbm, max_num_features=10)
-    plt.show() """
 
     print("Starting predicting...")
-    # plt.savefig("feature_importance.png")
     y_pred = model.predict(X_test, num_iteration=model.best_iteration)
     score = rmse(y_pred, y_test)
     print(f"RMSE Score on Test set: {score:0.3f}")
@@ -48,25 +53,25 @@ def train(df: pd.DataFrame, params: Any):
 def main(cfg: DictConfig):
 
     dir = os.listdir(cfg.get("output_model_dir"))
-    if not cfg.get("run_once") or len(dir) == 0:
-        MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-        MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
-        MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
-        MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-        MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 
-        # MINIO_ENDPOINT = "localhost:9000"
-        # MINIO_BUCKET_NAME_TRAINING = "test-bucket"
-        # MINIO_BUCKET_NAME_MODEL = "model-bucket"
-        # MINIO_ACCESS_KEY = "root"
-        # MINIO_SECRET_KEY = "root1234"
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+    MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
+    MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+    client = MinioClient(MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
 
+    if client.check_empty(MINIO_BUCKET_NAME_TRAINING):
+        print("No training data found in MinIO bucket", MINIO_BUCKET_NAME_TRAINING)
+    elif (
+        not cfg.get("run_once")
+        or len(dir) == 0
+        or client.check_empty(MINIO_BUCKET_NAME_MODEL)
+    ):
         train_data_dir = cfg.get("data_dir")
         model_out_dir = cfg.get("model_out_dir")
         date_format = cfg.get("date_format")
         train_params = OmegaConf.to_object(cfg.get("train_params"))
-
-        client = MinioClient(MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
 
         train_file_obj = client.download_file(
             dest_dir=train_data_dir, bucket_name=MINIO_BUCKET_NAME_TRAINING, latest=True

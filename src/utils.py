@@ -3,11 +3,8 @@ import pandas as pd
 
 
 def rmse(prediction, ground_truth):
-    # Calculate squared differences
     squared_diff = (prediction - ground_truth) ** 2
-    # Calculate mean of squared differences
     mean_squared_diff = np.mean(squared_diff)
-    # Take square root to get RMSE
     rmse_val = np.sqrt(mean_squared_diff)
     return rmse_val
 

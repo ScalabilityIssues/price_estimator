@@ -26,6 +26,8 @@ services:
     build:
       context: .
       dockerfile: ./docker/predict/Dockerfile
+    depends_on:
+      - ml-training
     container_name: ml-predict
     restart: on-failure
     volumes:

@@ -66,18 +66,13 @@ def serve(model: lgb.Booster):
 if __name__ == "__main__":
     try:
         logging.basicConfig()
-        # MODEL_PATH = os.getenv("MODEL_PATH")
-        # MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-        # MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
-        # MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-        # MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+        MODEL_PATH = os.getenv("MODEL_PATH")
+        MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+        MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
+        MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+        MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 
-        MINIO_ENDPOINT = "localhost:9000"
-        MINIO_BUCKET_NAME_MODEL = "model-bucket"
-        MINIO_ACCESS_KEY = "root"
-        MINIO_SECRET_KEY = "root1234"
-        MODEL_PATH = "out/"
-        """ if MODEL_PATH and os.path.exists(MODEL_PATH):
+        if MODEL_PATH and os.path.exists(MODEL_PATH):
             client = MinioClient(
                 MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
             )
@@ -92,8 +87,7 @@ if __name__ == "__main__":
                 model = lgb.Booster(model_file=MODEL_PATH + file.object_name)
                 serve(model)
         else:
-            print("Model directory not found") """
-        model = lgb.Booster(model_file=MODEL_PATH + "test_model.txt")
-        serve(model)
+            print("Model directory not found")
+
     except S3Error as exc:
         print("Error occurred in MinIO", exc)
