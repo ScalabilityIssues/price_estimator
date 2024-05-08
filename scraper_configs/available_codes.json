@@ -1,0 +1,22 @@
+{
+    "LHR": "London",
+    "CDG": "Paris",
+    "FRA": "Frankfurt",
+    "AMS": "Amsterdam",
+    "MAD": "Madrid",
+    "BCN": "Barcelona",
+    "MUC": "Munich",
+    "FCO": "Rome",
+    "ZRH": "Zurich",
+    "IST": "Istanbul",
+    "VIE": "Vienna",
+    "DUB": "Dublin",
+    "CPH": "Copenhagen",
+    "ARN": "Stockholm",
+    "OSL": "Oslo",
+    "BRU": "Brussels",
+    "LIS": "Lisbon",
+    "ATH": "Athens",
+    "GVA": "Geneva",
+    "SVO": "Moscow"
+}
