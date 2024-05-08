@@ -122,7 +122,7 @@ class MinioClient:
         )
         return file
 
-    def check_empty(self, bucket_name):
+    def is_empty(self, bucket_name):
         """
         Checks if a bucket is empty.
 
@@ -135,7 +135,7 @@ class MinioClient:
         objects = self.client.list_objects(bucket_name)
         return objects == None
 
-    def check_file_exists(self, bucket_name, file_name):
+    def exists_file(self, bucket_name, file_name):
         """
         Checks if a file exists in the specified Minio bucket.
 

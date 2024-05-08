@@ -168,7 +168,6 @@ def generate_permutations(
 
 def save_info(
     dest_dir: str,
-    filename: str,
     results: List[List[Any]],
 ):
     """
@@ -182,6 +181,7 @@ def save_info(
     Returns:
         None
     """
+    filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv"
     with open(dest_dir + filename, "x", newline="") as f:
         writer = csv.writer(f, delimiter=";")
         writer.writerow(

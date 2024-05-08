@@ -3,7 +3,7 @@ from typing import Dict
 import hydra, os
 from datetime import datetime
 import json
-
+from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser
 from omegaconf import DictConfig
@@ -104,24 +104,32 @@ async def scrape(
 
 
 async def main(cfg: DictConfig):
-    dir = os.listdir(cfg.get("output_data_dir"))
-    latest_file = max([f for f in dir], key=os.path.getctime)
-
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-    MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME")
+    MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
     MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-    DATA_DIR = os.getenv("DATA_DIR", "/data/scraped")
 
     client = MinioClient(
         MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
     )
 
-    if (
-        not cfg.get("run_once")
-        or len(dir) == 0
-        or client.check_file_exists(MINIO_BUCKET_NAME, latest_file)
-    ):
+    # Check if the latest file already exists in MinIO, otherwise upload it
+    data_dir = os.listdir(cfg.get("output_data_dir"))
+    if len(data_dir) != 0:
+        latest_file = max([f for f in data_dir], key=os.path.getctime)
+        if not client.exists_file(MINIO_BUCKET_NAME_TRAINING, latest_file):
+            client.upload_file(
+                bucket_name=MINIO_BUCKET_NAME_TRAINING,
+                source_dir=data_dir,
+                file_name=latest_file,
+                content_type="application/csv",
+            )
+            print(
+                f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_TRAINING} from {data_dir}"
+            )
+
+    # Check if there are data already scraped, if not scrape the data and upload it to MinIO
+    if not cfg.get("run_once") or len(data_dir) == 0:
 
         # Get the configuration parameters
         start_date = cfg.get("start_date")
@@ -140,8 +148,6 @@ async def main(cfg: DictConfig):
         locations = list(str.split(cfg.get("locations"), ","))
         permutations = generate_permutations(dates, locations)
 
-        output_data_dir = cfg.get("output_data_dir")
-        data_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv"
         iata_codes_mapping = {}
         num_workers = cfg.get("num_workers")
         headless = cfg.get("headless")
@@ -183,17 +189,16 @@ async def main(cfg: DictConfig):
                 )
             await browser.close()
 
-        save_info(output_data_dir, data_filename, results)
-        print(f"Data saved in {output_data_dir + data_filename}")
-
+        save_info(data_dir, results)
+        print(f"Data saved in {data_dir}")
         client.upload_file(
-            bucket_name=MINIO_BUCKET_NAME,
-            source_dir=DATA_DIR,
+            bucket_name=MINIO_BUCKET_NAME_TRAINING,
+            source_dir=data_dir,
             latest=True,
             content_type="application/csv",
         )
         print(
-            f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME} from {DATA_DIR}"
+            f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_TRAINING} from {data_dir}"
         )
 
     else:
@@ -203,9 +208,10 @@ async def main(cfg: DictConfig):
 if __name__ == "__main__":
 
     @hydra.main(
-        version_base="1.3", config_path="../scraper_configs", config_name="config"
+        version_base="1.3", config_path="../configs/scraper", config_name="config"
     )
     def helper(cfg: DictConfig):
+        load_dotenv()
         asyncio.run(main(cfg))
 
     helper()

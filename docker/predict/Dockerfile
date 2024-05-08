@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements.txt .
+COPY requirements/price_prediction/requirements.txt .
 RUN pip install --no-cache-dir -r ./requirements.txt
 
 COPY --from=build-proto /app/priceest priceest
@@ -27,5 +27,3 @@ COPY --from=build-proto /app/commons commons
 
 
 EXPOSE 50051
-
-CMD python3 predict.py

@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from dotenv import load_dotenv
 import lightgbm as lgb
 import pandas as pd
 import hydra, os
@@ -49,7 +50,7 @@ def train(df: pd.DataFrame, params: Any):
     return model
 
 
-@hydra.main(version_base=None, config_path="../train_configs", config_name="config")
+@hydra.main(version_base=None, config_path="../configs/train", config_name="config")
 def main(cfg: DictConfig):
 
     dir = os.listdir(cfg.get("output_model_dir"))
@@ -61,12 +62,12 @@ def main(cfg: DictConfig):
     MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
     client = MinioClient(MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
 
-    if client.check_empty(MINIO_BUCKET_NAME_TRAINING):
+    if client.is_empty(MINIO_BUCKET_NAME_TRAINING):
         print("No training data found in MinIO bucket", MINIO_BUCKET_NAME_TRAINING)
     elif (
         not cfg.get("run_once")
         or len(dir) == 0
-        or client.check_empty(MINIO_BUCKET_NAME_MODEL)
+        or client.is_empty(MINIO_BUCKET_NAME_MODEL)
     ):
         train_data_dir = cfg.get("data_dir")
         model_out_dir = cfg.get("model_out_dir")
@@ -109,6 +110,7 @@ def main(cfg: DictConfig):
 
 if __name__ == "__main__":
     try:
+        load_dotenv()
         main()
     except S3Error as exc:
         print("Error occurred in MinIO", exc)

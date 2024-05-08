@@ -1,3 +1,0 @@
-[submodule "priceest-proto/proto"]
-	path = proto
-	url = https://github.com/ScalabilityIssues/proto

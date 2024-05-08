@@ -1,4 +1,5 @@
 import logging
+from dotenv import load_dotenv
 import lightgbm as lgb
 import os
 from concurrent import futures
@@ -66,6 +67,7 @@ def serve(model: lgb.Booster):
 if __name__ == "__main__":
     try:
         logging.basicConfig()
+        load_dotenv()
         MODEL_PATH = os.getenv("MODEL_PATH")
         MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
         MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
