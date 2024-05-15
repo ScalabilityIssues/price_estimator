@@ -161,7 +161,6 @@ cython_debug/
 
 
 # Ignore generated protobuf files
-src/protos/
 src/commons
 src/priceest
 data/minIO/

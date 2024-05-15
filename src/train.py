@@ -50,6 +50,8 @@ def train(df: pd.DataFrame, params: Any):
     return model
 
 
+# Train the model and upload it to MinIO, if a message from RabbitMQ arrives (scraping).
+# If the upload fails, write a log file to allow the resuming of the process later.
 @hydra.main(version_base=None, config_path="../configs/train", config_name="config")
 def main(cfg: DictConfig):
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
@@ -57,11 +59,20 @@ def main(cfg: DictConfig):
     MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
     MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-    client = MinioClient(MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
+    client = MinioClient(
+        MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
+    )
 
     output_model_dir = os.listdir(cfg.get("output_model_dir"))
-    if len(output_model_dir) != 0:
-        latest_file = max([f for f in output_model_dir], key=os.path.getctime)
+    if (
+        len(output_model_dir) != 0
+        and len([i for i, f in enumerate(output_model_dir) if ".csv" in f]) != 0
+        and not cfg.get("force_training")
+    ):
+        latest_file = max(
+            [f for f in output_model_dir if not f.endswith(".gitkeep")],
+            key=os.path.getctime,
+        )
         if not client.exists_file(MINIO_BUCKET_NAME_TRAINING, latest_file):
             print("New files found, uploading to MinIO bucket...")
             client.upload_file(
@@ -108,7 +119,12 @@ def main(cfg: DictConfig):
                 train_filename = train_file_obj.object_name
         else:
             train_filename = max(
-                [f for f in os.listdir(train_data_dir)], key=os.path.getctime
+                [
+                    train_data_dir + f
+                    for f in os.listdir(train_data_dir)
+                    if not f.endswith(".gitkeep")
+                ],
+                key=os.path.getctime,
             )
 
         df = pd.read_csv(train_data_dir + train_filename, sep=";", header=0)

@@ -1,108 +1,22 @@
 import asyncio
-from typing import Dict
 import hydra, os
 from datetime import datetime
 import json
 from dotenv import load_dotenv
-from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright, Browser
+from playwright.async_api import async_playwright
 from omegaconf import DictConfig
 from minio_client import MinioClient
 from utils_scraper import (
     generate_date_range,
     generate_permutations,
-    get_direct_flights_mask,
-    get_flight_price,
-    get_flight_times,
-    get_timezone,
     save_info,
+    scrape,
 )
 
 
-async def scrape(
-    task_id: int,
-    browser: Browser,
-    date: str,
-    source: str,
-    destination: str,
-    iata_codes_mapping: Dict[str, str],
-    locale: str = "en-US",
-    prefix_url: str = "https://www.kayak.com/flights/",
-    timeout: int = 60000,
-):
-    """
-    Scrapes flight data from Kayak website.
-
-    Args:
-        task_id (int): The ID of the task.
-        browser (Browser): The browser instance used for scraping.
-        date (str): The date of the flight.
-        source (str): The source airport code.
-        destination (str): The destination airport code.
-        iata_codes_mapping (Dict[str, str]): A dictionary mapping airport codes to timezones.
-        locale (str, optional): The locale to use for the browser. Defaults to "en-US".
-        prefix_url (str, optional): The prefix URL for the flight search. Defaults to "https://www.kayak.com/flights/".
-        timeout (int, optional): The timeout for page navigation. Defaults to 60000 (60 seconds).
-
-    Returns:
-        List: A list containing the scraped flight data, including date, source, destination, start times, end times, prices, and currencies.
-    """
-    # Generate the url, stops=~0 means approx direct flights only
-    url = f"{prefix_url}{source}-{destination}/{date}?stops=~0&sort=bestflight_a"
-
-    # Initialize the browser context
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-    context = await browser.new_context(
-        user_agent=user_agent,
-        viewport={"width": 1920, "height": 1080},
-        screen={"width": 1920, "height": 1080},
-        locale=locale,
-    )
-    page = await context.new_page()
-
-    try:
-        # Start true scraping
-        await page.goto(url, timeout=timeout)
-        tz_start = get_timezone(iata_codes_mapping[source])
-        tz_end = get_timezone(iata_codes_mapping[destination])
-
-        # Accept cookies
-        try:
-            await page.locator(
-                "xpath=//div[@class='RxNS-button-content' ]", has_text="Accept all"
-            ).click()
-        except Exception as e:
-            print(f"TASK {task_id} - no cookies to accept")
-
-        # Click "show more" button to get more flights
-        try:
-            for _ in range(2):
-                await page.locator(
-                    "xpath=//*[contains(@class, 'show-more-button')]"
-                ).click()
-                await asyncio.sleep(5)
-        except Exception as e:
-            print(f"TASK {task_id} - no more flights to show")
-
-        page_source = await page.content()
-        soup = BeautifulSoup(page_source, "html.parser")
-
-        direct_flights_mask = get_direct_flights_mask(soup)
-        start_times, end_times = get_flight_times(
-            soup, direct_flights_mask, tz_start, tz_end
-        )
-        prices, currencies = get_flight_price(soup, direct_flights_mask)
-        print(
-            f"TASK {task_id} - prices: {len(prices)} start_times: {len(start_times)} end_times: {len(end_times)} currencies: {len(currencies)}\n"
-        )
-        return [date, source, destination, start_times, end_times, prices, currencies]
-    except Exception as e:
-        print(f"Error scraping data from {url}: {e}")
-    finally:
-        await context.close()
-    return []
-
-
+# Produce a file and upload it to MinIO.
+# If the upload fails write log in a file to allow the resuming of the process later
+# Run only in force_scraping=True
 async def main(cfg: DictConfig):
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
     MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
@@ -114,8 +28,19 @@ async def main(cfg: DictConfig):
     )
 
     data_dir = os.listdir(cfg.get("output_data_dir"))
-    if len(data_dir) != 0:
-        latest_file = max([f for f in data_dir], key=os.path.getctime)
+    if (
+        len(data_dir) != 0
+        and len([i for i, f in enumerate(data_dir) if ".csv" in f]) != 0
+        and not cfg.get("force_scraping")
+    ):
+        latest_file = max(
+            [
+                cfg.get("output_data_dir") + f
+                for f in data_dir
+                if not f.endswith(".gitkeep")
+            ],
+            key=os.path.getctime,
+        )
         if not client.exists_file(MINIO_BUCKET_NAME_TRAINING, latest_file):
             print("New files found, uploading to MinIO bucket...")
             client.upload_file(

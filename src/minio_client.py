@@ -47,7 +47,11 @@ class MinioClient:
         source_path = ""
         if os.path.exists(source_dir):
             if latest:
-                all_files = [source_dir + f for f in os.listdir(source_dir)]
+                all_files = [
+                    source_dir + f
+                    for f in os.listdir(source_dir)
+                    if not (source_dir + f).endswith(".gitkeep")
+                ]
                 latest_file = max(all_files, key=os.path.getctime)
                 source_path = latest  # data_dir + latest_filename
                 file_name = os.path.basename(latest_file)

@@ -1,7 +1,8 @@
 FROM python:3.11-slim AS base
 WORKDIR /app
 
-COPY ./requirements.txt .
+COPY requirements/price_prediction/requirements.txt .
+COPY .env .
 
 RUN apt-get update && apt-get install -y \
     libgomp1 \

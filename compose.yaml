@@ -1,6 +1,3 @@
-version: '3.8'
-name: simurgh-dev
-
 services:
   minio-db:
     # https://hub.docker.com/r/minio/minio
@@ -15,10 +12,10 @@ services:
       MINIO_ROOT_USER: root
       MINIO_ROOT_PASSWORD: root1234
     volumes:
-      - data/minIO/:/data
+      - ./data/minIO/:/data
     command: server /data --console-address ":9001"
 
-  ml-data-scarper:
+  ml-data-scraper:
     build:
       context: .
       dockerfile: docker/ml_data/Dockerfile
@@ -27,9 +24,9 @@ services:
     container_name: ml-data-scraper
     restart: on-failure
     volumes:
-      - data/scraped:/app/data/scraped
-      - configs/scraper:/app/configs/scraper
-      - src:/app/src
+      - ./data/scraped:/app/data/scraped
+      - ./configs/scraper:/app/configs/scraper
+      - ./src:/app/src
     entrypoint: [ "bash", "-c", "python3 src/scraper.py" ]
     
   ml-training:
@@ -42,10 +39,10 @@ services:
     container_name: ml-training
     restart: on-failure
     volumes:
-      - data/scraped:/app/data/scraped
-      - configs/train:/app/configs/train
-      - src:/app/src
-      - out:/app/out
+      - ./data/scraped:/app/data/scraped
+      - ./configs/train:/app/configs/train
+      - ./src:/app/src
+      - ./out:/app/out
     entrypoint: [ "bash", "-c", "python3 src/train.py" ]
     
   ml-predict:
@@ -59,6 +56,6 @@ services:
     container_name: ml-predict
     restart: on-failure
     volumes:
-      - src:/app/src
-      - out:/app/out
+      - ./src:/app/src
+      - ./out:/app/out
     entrypoint: [ "bash", "-c", "python3 src/predict.py" ]

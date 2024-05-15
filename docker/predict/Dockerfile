@@ -20,10 +20,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements/price_prediction/requirements.txt .
+COPY .env .
+
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-COPY --from=build-proto /app/priceest priceest
-COPY --from=build-proto /app/commons commons
+COPY --from=build-proto /app/priceest /app/src/priceest
+COPY --from=build-proto /app/commons /app/src/commons
 
 
 EXPOSE 50051

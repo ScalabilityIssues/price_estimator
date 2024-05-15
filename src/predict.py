@@ -66,6 +66,8 @@ def serve(model: lgb.Booster):
     server.wait_for_termination()
 
 
+# Download the model from MinIO and start prediction server.
+# If the model in not found in MinIO, wait for a message from RabbitMQ.
 @hydra.main(version_base="1.3", config_path="../configs/predict", config_name="config")
 def main(cfg: DictConfig):
     logging.basicConfig()
@@ -79,7 +81,8 @@ def main(cfg: DictConfig):
     if len(os.listdir(model_path)) != 0:
         print("Model found")
         latest = model_path + max(
-            [f for f in os.listdir(model_path)], key=os.path.getctime
+            [f for f in os.listdir(model_path) if not f.endswith(".gitkeep")],
+            key=os.path.getctime,
         )
         model = lgb.Booster(model_file=latest)
         serve(model)
