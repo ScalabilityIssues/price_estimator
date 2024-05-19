@@ -1,24 +1,51 @@
 version: '3.8'
 
 services:
-  minio-db:
-    image: bitnami/minio
+  minio-server:
+    image: minio/minio:latest
     depends_on:
       - rabbitmq
-    container_name: minio-db
     ports:
       - 9000:9000
       - 9001:9001
     environment:
       MINIO_ROOT_USER: root
       MINIO_ROOT_PASSWORD: root1234
+      MINIO_NOTIFY_AMQP_ENABLE_1: "on"
+      MINIO_NOTIFY_AMQP_URL_1: "amqp://guest:guest@rabbitmq:5672"
+      MINIO_NOTIFY_AMQP_EXCHANGE_1: "minio_events"
+      MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_1: direct
+      MINIO_NOTIFY_AMQP_ROUTING_KEY_1: data
+      MINIO_NOTIFY_AMQP_DURABLE_1: "on"
     volumes:
-      - ./data/minIO/:/bitnami/minio/data
+      - ./data/minIO/:/data
+    entrypoint: sh -c "sleep 10 && minio server /data --console-address ":9001""
 
+  minio-client:
+    image: minio/mc:latest
+    depends_on:
+      - minio-server
+    environment:
+      MINIO_ROOT_USER: root
+      MINIO_ROOT_PASSWORD: root1234
+      ENDPOINT: http://localhost:9000
+    entrypoint:  /bin/sh -c "
+                sleep 10;
+                mc config host add myminio $ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD;
+                mc admin service restart myminio;
+                sleep 5;
+                mc mb myminio/ml-data;
+                mc event add myminio/ml-data arn:minio:sqs::1:amqp --suffix .csv;
+                mc event list myminio/ml-data;
+                exit 0; "
+  
   rabbitmq:
     image: rabbitmq:3-management
+    hostname: rabbitmq
+    expose:
+      - "5672"
+      - "15672"
     ports:
-      - "5672:5672"
       - "15672:15672"
     volumes:
       - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf

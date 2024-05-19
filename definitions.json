@@ -28,14 +28,14 @@
     "policies": [],
     "queues": [
         {
-            "name": "ml_data",
+            "name": "ml-data",
             "durable": true,
             "vhost": "/",
             "auto_delete": false,
             "arguments": {}
         },
         {
-            "name": "ml_model",
+            "name": "ml-model",
             "durable": true,
             "vhost": "/",
             "auto_delete": false,
@@ -44,7 +44,7 @@
     ],
     "exchanges": [
         {
-            "name": "minio_events",
+            "name": "minio-events",
             "type": "direct",
             "durable": true,
             "vhost": "/",
@@ -55,16 +55,16 @@
     ],
     "bindings": [
         {
-            "source": "minio_events",
-            "destination": "ml_data",
+            "source": "minio-events",
+            "destination": "ml-data",
             "destination_type": "queue",
             "vhost": "/",
             "routing_key": "data",
             "arguments": {}
         },
         {
-            "source": "minio_events",
-            "destination": "ml_model",
+            "source": "minio-events",
+            "destination": "ml-model",
             "vhost": "/",
             "destination_type": "queue",
             "routing_key": "model",
