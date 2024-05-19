@@ -1,0 +1,74 @@
+{
+    "users": [
+        {
+            "name": "guest",
+            "password_hash": "KX41sfHiEJt06a5donso8bXSPtPtXK+Op7eog8uCYGh5wvEa",
+            "hashing_algorithm": "rabbit_password_hashing_sha256",
+            "tags": [
+                "administrator"
+            ],
+            "limits": {}
+        }
+    ],
+    "vhosts": [
+        {
+            "name": "/"
+        }
+    ],
+    "permissions": [
+        {
+            "user": "guest",
+            "vhost": "/",
+            "configure": ".*",
+            "write": ".*",
+            "read": ".*"
+        }
+    ],
+    "parameters": [],
+    "policies": [],
+    "queues": [
+        {
+            "name": "ml_data",
+            "durable": true,
+            "vhost": "/",
+            "auto_delete": false,
+            "arguments": {}
+        },
+        {
+            "name": "ml_model",
+            "durable": true,
+            "vhost": "/",
+            "auto_delete": false,
+            "arguments": {}
+        }
+    ],
+    "exchanges": [
+        {
+            "name": "minio_events",
+            "type": "direct",
+            "durable": true,
+            "vhost": "/",
+            "auto_delete": false,
+            "internal": false,
+            "arguments": {}
+        }
+    ],
+    "bindings": [
+        {
+            "source": "minio_events",
+            "destination": "ml_data",
+            "destination_type": "queue",
+            "vhost": "/",
+            "routing_key": "data",
+            "arguments": {}
+        },
+        {
+            "source": "minio_events",
+            "destination": "ml_model",
+            "vhost": "/",
+            "destination_type": "queue",
+            "routing_key": "model",
+            "arguments": {}
+        }
+    ]
+}
