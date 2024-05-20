@@ -171,7 +171,7 @@ def generate_permutations(
 def save_info(
     dest_dir: str,
     results: List[List[Any]],
-):
+) -> str:
     """
     Saves flight information to a CSV file.
 
@@ -180,7 +180,7 @@ def save_info(
         results (List[List[Any]]): A list of flight information.
 
     Returns:
-        None
+        str: The filename of the saved CSV file.
     """
     filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv"
     with open(dest_dir + filename, "x", newline="") as f:
@@ -212,6 +212,7 @@ def save_info(
                     destination,
                 ] + list(flight_data)
                 writer.writerow(row)
+    return filename
 
 
 async def scrape(

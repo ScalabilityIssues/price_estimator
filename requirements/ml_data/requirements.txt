@@ -1,7 +1,7 @@
 playwright==1.42
 beautifulsoup4==4.12
 hydra-core==1.3
-minio==7.2
+minio
 geopy
 timezonefinder
 python-dotenv

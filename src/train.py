@@ -1,4 +1,5 @@
 from datetime import datetime
+from time import ctime
 from typing import Any
 from dotenv import load_dotenv
 import lightgbm as lgb
@@ -6,22 +7,21 @@ import pandas as pd
 import hydra, os
 
 from omegaconf import DictConfig, OmegaConf
-from minio_client import MinioClient
-from minio.error import S3Error
-from utils_prediction import rmse, build_flight_df
+from minio import Minio
+from progress import Progress
+from utils_predict import rmse, build_flight_df
+from functools import partial
+import pika
 
 
-def train(df: pd.DataFrame, params: Any):
-    """
-    Train a LightGBM model using the provided DataFrame and parameters.
+def train(file_path, train_params: Any, date_format: str):
+    df = pd.read_csv(file_path, sep=";", header=0)
+    df = build_flight_df(df, date_format=date_format)
 
-    Args:
-        df (pd.DataFrame): The input DataFrame containing the training data.
-        params (Any): The parameters for the LightGBM model.
+    # Drop redundant or useless columns
+    df = df.drop(["currency"], axis=1)
+    df["price"] = df["price"].astype("float32")
 
-    Returns:
-        model: The trained LightGBM model.
-    """
     split_date = str(df.index[int(len(df) * 0.8)].date())
     train = df.loc[:split_date]
     test = df.loc[split_date:]
@@ -35,7 +35,7 @@ def train(df: pd.DataFrame, params: Any):
 
     print("Starting training...")
     model = lgb.train(
-        params,
+        train_params,
         lgb_train,
         num_boost_round=20,
         valid_sets=[lgb_eval],
@@ -47,113 +47,95 @@ def train(df: pd.DataFrame, params: Any):
     y_pred = model.predict(X_test, num_iteration=model.best_iteration)
     score = rmse(y_pred, y_test)
     print(f"RMSE Score on Test set: {score:0.3f}")
+
     return model
+
+
+def consume_callback(ch, method, properties, body, args):
+    train_data_dir = args.get("data_dir")
+    model_out_dir = args.get("model_out_dir")
+    date_format = args.get("date_format")
+    train_params = OmegaConf.to_object(args.get("train_params"))
+
+    obj_name_train = body["Records"]["s3"]["object"]["key"]
+    bucket_name_train = body["Records"]["s3"]["bucket"]["name"]
+    minio_client = args.get("minio_client")
+    bucket_name_model = args.get("bucket_name_model")
+
+    print(f" [*] Received message for {obj_name_train} in bucket {bucket_name_train}")
+
+    result = minio_client.fget_object(
+        bucket_name=bucket_name_train,
+        object_name=obj_name_train,
+        file_path=train_data_dir + obj_name_train,
+    )
+    if result is None:
+        print("[*] Error downloading the file")
+        return
+
+    print("[*] File downloaded successfully")
+    model: lgb.Booster = train(
+        train_data_dir + obj_name_train, train_params, date_format
+    )
+    model_name = "model_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".txt"
+    model.save_model(model_out_dir + model_name)
+    print(f"[*] Model saved in {model_out_dir + model_name}")
+
+    result = minio_client.fput_object(
+        bucket_name=bucket_name_model,
+        object_name=model_name,
+        file_path=model_out_dir + model_name,
+        progress=Progress(),
+        content_type="application/txt",
+        metadata={"creation-date": ctime(os.path.getctime(model_out_dir + model_name))},
+    )
+    print(f"[*] Object {result.object_name} uploaded to MinIO bucket")
 
 
 # Train the model and upload it to MinIO, if a message from RabbitMQ arrives (scraping).
 # If the upload fails, write a log file to allow the resuming of the process later.
 @hydra.main(version_base=None, config_path="../configs/train", config_name="config")
 def main(cfg: DictConfig):
+    load_dotenv()
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
     MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
     MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
     MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-    client = MinioClient(
-        MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, secure=False
+    secure_connection = cfg.get("secure_connection")
+
+    minio_client = Minio(
+        endpoint=MINIO_ENDPOINT,
+        access_key=MINIO_ACCESS_KEY,
+        secret_key=MINIO_SECRET_KEY,
+        secure=secure_connection,
     )
+    if not minio_client.bucket_exists(
+        MINIO_BUCKET_NAME_TRAINING
+    ) or not minio_client.bucket_exists(MINIO_BUCKET_NAME_MODEL):
+        raise Exception(
+            f"Bucket {MINIO_BUCKET_NAME_TRAINING} or bucket {MINIO_BUCKET_NAME_MODEL} do not exist"
+        )
 
-    output_model_dir = os.listdir(cfg.get("output_model_dir"))
-    if (
-        len(output_model_dir) != 0
-        and len([i for i, f in enumerate(output_model_dir) if ".csv" in f]) != 0
-        and not cfg.get("force_training")
-    ):
-        latest_file = max(
-            [f for f in output_model_dir if not f.endswith(".gitkeep")],
-            key=os.path.getctime,
+    connection_rabbitmq = pika.BlockingConnection(
+        pika.ConnectionParameters(host="rabbitmq")
+    )
+    channel_rabbitmq = connection_rabbitmq.channel()
+
+    if cfg.get("force_training"):
+        cfg["minio_client"] = minio_client
+        cfg["bucket_name_model"] = MINIO_BUCKET_NAME_MODEL
+        channel_rabbitmq.basic_consume(
+            queue="ml-data",
+            on_message_callback=partial(consume_callback, args=cfg),
+            auto_ack=True,
         )
-        if not client.exists_file(MINIO_BUCKET_NAME_TRAINING, latest_file):
-            print("New files found, uploading to MinIO bucket...")
-            client.upload_file(
-                bucket_name=MINIO_BUCKET_NAME_TRAINING,
-                source_dir=output_model_dir,
-                file_name=latest_file,
-                content_type="application/csv",
-            )
-            print(
-                f"Files uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_TRAINING} from {output_model_dir}"
-            )
-    elif not client.is_empty(MINIO_BUCKET_NAME_MODEL) and not cfg.get("force_training"):
-        print("No model data found, downloading from MinIO bucket...")
-        client.download_file(
-            dest_dir=output_model_dir,
-            bucket_name=MINIO_BUCKET_NAME_MODEL,
-            latest=True,
-        )
-        print(f"Files downloaded successfully to {output_model_dir}")
+        print(" [*] Waiting for messages. To exit press CTRL+C")
+        channel_rabbitmq.start_consuming()
     else:
-        print(
-            "No data found in MinIO bucket or `force_training=True`, starting training..."
-        )
-        train_data_dir = cfg.get("data_dir")
-        model_out_dir = cfg.get("model_out_dir")
-        date_format = cfg.get("date_format")
-        train_params = OmegaConf.to_object(cfg.get("train_params"))
-
-        train_filename = None
-        if len(os.listdir(train_data_dir)) == 0:
-            print(
-                f"No training data found in the directory {train_data_dir}, trying to download from MinIO..."
-            )
-            train_file_obj = client.download_file(
-                dest_dir=train_data_dir,
-                bucket_name=MINIO_BUCKET_NAME_TRAINING,
-                latest=True,
-            )
-            if not train_file_obj:
-                print("No training data file found")
-                return
-            else:
-                print(f"Training data downloaded successfully to {train_data_dir}")
-                train_filename = train_file_obj.object_name
-        else:
-            train_filename = max(
-                [
-                    train_data_dir + f
-                    for f in os.listdir(train_data_dir)
-                    if not f.endswith(".gitkeep")
-                ],
-                key=os.path.getctime,
-            )
-
-        df = pd.read_csv(train_data_dir + train_filename, sep=";", header=0)
-        df = build_flight_df(df, date_format=date_format)
-
-        # Drop redundant or useless columns
-        df = df.drop(["currency"], axis=1)
-        df["price"] = df["price"].astype("float32")
-
-        model: lgb.Booster = train(df, train_params)
-        model_name = "model" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".txt"
-        model.save_model(model_out_dir + model_name)
-        print(f"Model saved in {model_out_dir + model_name}")
-
-        client.upload_file(
-            bucket_name=MINIO_BUCKET_NAME_MODEL,
-            source_dir=model_out_dir,
-            file_name=model_name,
-            latest=False,
-            content_type="application/txt",
-        )
-        print(
-            f"Model uploaded successfully to MinIO bucket {MINIO_BUCKET_NAME_MODEL} from {model_out_dir}"
-        )
+        print("Training not forced, skipping...")
+        connection_rabbitmq.close()
 
 
 if __name__ == "__main__":
-    try:
-        load_dotenv()
-        main()
-    except S3Error as exc:
-        print("Error occurred in MinIO", exc)
+    main()

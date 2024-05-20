@@ -6,3 +6,5 @@ COPY requirements/ml_data/requirements.txt .
 COPY .env .
 
 RUN pip install --no-cache-dir -r ./requirements.txt && playwright install --with-deps chromium
+
+RUN mkdir -p /app/data/scraped/

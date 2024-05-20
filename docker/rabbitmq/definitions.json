@@ -65,8 +65,8 @@
         {
             "source": "minio-events",
             "destination": "ml-model",
-            "vhost": "/",
             "destination_type": "queue",
+            "vhost": "/",
             "routing_key": "model",
             "arguments": {}
         }

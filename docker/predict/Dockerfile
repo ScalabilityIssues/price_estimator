@@ -24,8 +24,9 @@ COPY .env .
 
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-COPY --from=build-proto /app/priceest /app/src/priceest
-COPY --from=build-proto /app/commons /app/src/commons
+COPY --from=build-proto priceest /app/src/priceest
+COPY --from=build-proto commons /app/src/commons
 
-
+RUN mkdir -p /app/out
 EXPOSE 50051
+

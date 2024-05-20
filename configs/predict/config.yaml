@@ -10,5 +10,5 @@ hydra:
 
 
 cwd: ${hydra:runtime.cwd}
-
-model_path: ${cwd}/out/
+secure_connection: False
+model_dir: ${cwd}/out/
