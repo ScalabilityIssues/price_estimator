@@ -24,9 +24,13 @@ COPY .env .
 
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-COPY --from=build-proto priceest /app/src/priceest
-COPY --from=build-proto commons /app/src/commons
+COPY src/predict.py src/utils_predict.py /app/src/
+COPY configs/predict /app/configs/predict
+
+COPY --from=build-proto /app/priceest /app/src/priceest
+COPY --from=build-proto /app/commons /app/src/commons
 
 RUN mkdir -p /app/out
 EXPOSE 50051
 
+ENTRYPOINT [ "python3", "/app/src/predict.py"]
