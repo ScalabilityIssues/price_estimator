@@ -32,6 +32,6 @@ RUN mkdir -p /app/src
 COPY ./docker/predict/init.sh /
 RUN chmod +x /init.sh
 
-#ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 50051
