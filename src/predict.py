@@ -7,7 +7,7 @@ import os
 from concurrent import futures
 import grpc
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import pandas as pd
 import hydra
 import pika
@@ -90,7 +90,6 @@ def consume_callback(ch, method, properties, body, args):
 # If the model in not found in MinIO, wait for a message from RabbitMQ.
 @hydra.main(version_base="1.3", config_path="../configs/predict", config_name="config")
 def main(cfg: DictConfig):
-    logging.basicConfig()
     load_dotenv()
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
     MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
@@ -125,11 +124,12 @@ def main(cfg: DictConfig):
         connection_rabbitmq = pika.BlockingConnection(
             pika.ConnectionParameters(host="rabbitmq")
         )
+        args = dict(cfg)
         channel_rabbitmq = connection_rabbitmq.channel()
-        cfg["minio_client"] = minio_client
+        args["minio_client"] = minio_client
         channel_rabbitmq.basic_consume(
             queue="ml-model",
-            on_message_callback=partial(consume_callback, args=minio_client),
+            on_message_callback=partial(consume_callback, args=args),
             auto_ack=True,
         )
         print(" [*] Waiting for messages. To exit press CTRL+C")

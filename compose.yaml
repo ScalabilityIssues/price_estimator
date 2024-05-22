@@ -1,120 +1,121 @@
 services:
 
-  rabbitmq:
+#  rabbitmq:
+#    build:
+#      context: .
+#      dockerfile: docker/rabbitmq/Dockerfile
+#    restart: on-failure
+#    hostname: rabbitmq
+#    expose:
+#      - 5672
+#      - 15672
+#    ports:
+#      - 5672:5672
+#      - 15672:15672
+#    healthcheck:
+#      test: curl --fail http://rabbitmq:15672/ || exit 1
+#      interval: 10s
+#      timeout: 2m
+#      retries: 10
+#      start_period: 10s
+#    volumes:
+#      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+#      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+#
+#  minio-server:
+#    # https://min.io/docs/minio/container/index.html
+#    image: bitnami/minio:latest
+#    restart: on-failure
+#    hostname: minio
+#    depends_on:
+#      rabbitmq:
+#        condition: service_healthy
+#    expose:
+#      - 9000
+#      - 9001
+#    ports:
+#      - 9000:9000
+#      - 9001:9001
+#    healthcheck:
+#      test: curl --fail http://minio:9001/ || exit 1
+#      interval: 10s
+#      timeout: 2m
+#      retries: 10
+#      start_period: 10s
+#    environment:
+#      MINIO_ROOT_USER: root
+#      MINIO_ROOT_PASSWORD: root1234
+#      # AMQP notification bucket ml-data
+#      MINIO_NOTIFY_AMQP_ENABLE_1: "on"
+#      MINIO_NOTIFY_AMQP_URL_1: "amqp://guest:guest@rabbitmq:5672"
+#      MINIO_NOTIFY_AMQP_EXCHANGE_1: "minio-events"
+#      MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_1: "direct"
+#      MINIO_NOTIFY_AMQP_ROUTING_KEY_1: "data"
+#      MINIO_NOTIFY_AMQP_DURABLE_1: "on"
+#      # AMQP notification bucket ml-model
+#      MINIO_NOTIFY_AMQP_ENABLE_2: "on"
+#      MINIO_NOTIFY_AMQP_URL_2: "amqp://guest:guest@rabbitmq:5672"
+#      MINIO_NOTIFY_AMQP_EXCHANGE_2: "minio-events"
+#      MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_2: "direct"
+#      MINIO_NOTIFY_AMQP_ROUTING_KEY_2: "model"
+#      MINIO_NOTIFY_AMQP_DURABLE_2: "on"
+#    volumes:
+#      - ./data/minIO/:/bitnami/minio/data
+#
+#  minio-client:
+#    image: bitnami/minio-client:latest
+#    depends_on:
+#      minio-server:
+#        condition: service_healthy
+#    entrypoint: [""]
+#    command:  /bin/bash -c "
+#              mc config host add local http://minio:9000 root root1234;
+#              mc mb local/ml-data --ignore-existing;
+#              mc mb local/ml-model --ignore-existing;
+#              mc event add local/ml-data arn:minio:sqs::1:amqp --ignore-existing --suffix .csv --event put;
+#              mc event add local/ml-model arn:minio:sqs::2:amqp --ignore-existing --suffix .txt --event put;
+#              exit 0; "
+#    # If AMQP is not working add the following lines to the command after config host:
+#    # mc admin service restart local;
+#    # mc ping local --exit --count 10 --interval 2;
+#
+#  ml-data-scraper:
+#    build:
+#      context: .
+#      dockerfile: docker/ml_data/Dockerfile
+#    depends_on:
+#      minio-client:
+#        condition: service_completed_successfully
+#    restart: on-failure
+#    volumes:
+#      - ./data/scraped:/app/data/scraped
+#      - ./configs/scrape:/app/configs/scrape
+#      - ./src:/app/src
+#    entrypoint: [ "bash", "-c", "python3 src/scrape.py" ]
+#    
+#  ml-training:
+#    build:
+#      context: .
+#      dockerfile: docker/train/Dockerfile
+#    depends_on:
+#      minio-client:
+#        condition: service_completed_successfully
+#    restart: on-failure
+#    volumes:
+#      - ./configs/train:/app/configs/train
+#      - ./src:/app/src
+#      - ./out:/app/out
+#    entrypoint: [ "bash", "-c", "python3 src/train.py" ]
+    
+  ml-predict:
     build:
       context: .
-      dockerfile: docker/rabbitmq/Dockerfile
+      dockerfile: docker/predict/Dockerfile
+    #depends_on:
+    #  minio-client:
+    #    condition: service_completed_successfully
     restart: on-failure
-    hostname: rabbitmq
-    expose:
-      - 5672
-      - 15672
-    ports:
-      - 5672:5672
-      - 15672:15672
-    healthcheck:
-      test: curl --fail http://rabbitmq:15672/ || exit 1
-      interval: 10s
-      timeout: 1m
-      retries: 5
-      start_period: 5s
     volumes:
-      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
-      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
-
-  minio-server:
-    # https://min.io/docs/minio/container/index.html
-    image: bitnami/minio:latest
-    restart: on-failure
-    hostname: minio
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    expose:
-      - 9000
-      - 9001
-    ports:
-      - 9000:9000
-      - 9001:9001
-    healthcheck:
-      test: curl --fail http://minio:9001/ || exit 1
-      interval: 10s
-      timeout: 1m
-      retries: 5
-      start_period: 5s
-    environment:
-      MINIO_ROOT_USER: root
-      MINIO_ROOT_PASSWORD: root1234
-      # AMQP notification bucket ml-data
-      MINIO_NOTIFY_AMQP_ENABLE_1: "on"
-      MINIO_NOTIFY_AMQP_URL_1: "amqp://guest:guest@rabbitmq:5672"
-      MINIO_NOTIFY_AMQP_EXCHANGE_1: "minio-events"
-      MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_1: "direct"
-      MINIO_NOTIFY_AMQP_ROUTING_KEY_1: "data"
-      MINIO_NOTIFY_AMQP_DURABLE_1: "on"
-      # AMQP notification bucket ml-model
-      MINIO_NOTIFY_AMQP_ENABLE_2: "on"
-      MINIO_NOTIFY_AMQP_URL_2: "amqp://guest:guest@rabbitmq:5672"
-      MINIO_NOTIFY_AMQP_EXCHANGE_2: "minio-events"
-      MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_2: "direct"
-      MINIO_NOTIFY_AMQP_ROUTING_KEY_2: "model"
-      MINIO_NOTIFY_AMQP_DURABLE_2: "on"
-    volumes:
-      - ./data/minIO/:/bitnami/minio/data
-
-  minio-client:
-    image: bitnami/minio-client:latest
-    depends_on:
-      minio-server:
-        condition: service_healthy
-    entrypoint: [""]
-    command:  /bin/bash -c "
-              mc config host add local http://minio:9000 root root1234;
-              mc mb local/ml-data --ignore-existing;
-              mc mb local/ml-model --ignore-existing;
-              mc event add local/ml-data arn:minio:sqs::1:amqp --ignore-existing --suffix .csv --event put;
-              mc event add local/ml-model arn:minio:sqs::2:amqp --ignore-existing --suffix .txt --event put;
-              exit 0; "
-    # If AMQP is not working add the following lines to the command after config host:
-    # mc admin service restart local;
-    # mc ping local --exit --count 10 --interval 2;
-
-  #ml-data-scraper:
-  #  build:
-  #    context: .
-  #    dockerfile: docker/ml_data/Dockerfile
-  #  depends_on:
-  #    minio-client:
-  #      condition: service_completed_successfully
-  #  restart: on-failure
-  #  volumes:
-  #    - ./data/scraped:/app/data/scraped
-  #    - ./configs/scrape:/app/configs/scrape
-  #    - ./src:/app/src
-  #  entrypoint: [ "bash", "-c", "python3 src/scrape.py" ]
-  #  
-  #ml-training:
-  #  build:
-  #    context: .
-  #    dockerfile: docker/train/Dockerfile
-  #  depends_on:
-  #    minio-client:
-  #      condition: service_completed_successfully
-  #  restart: on-failure
-  #  volumes:
-  #    - ./configs/train:/app/configs/train
-  #    - ./src:/app/src
-  #    - ./out:/app/out
-  #  entrypoint: [ "bash", "-c", "python3 src/train.py" ]
-  #  
-  #ml-predict:
-  #  build:
-  #    context: .
-  #    dockerfile: docker/predict/Dockerfile
-  #  depends_on:
-  #    minio-client:
-  #      condition: service_completed_successfully
-  #  restart: on-failure
-  #  volumes:
-  #    - ./src:/app/src
-  #  entrypoint: [ "bash", "-c", "python3 src/predict.py" ]
+      - ./configs/predict:/app/configs/predict
+      - ./src:/app/src
+    entrypoint: ["bash", "-c", "/init.sh; python3 src/predict.py"]

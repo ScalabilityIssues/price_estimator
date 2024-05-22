@@ -123,11 +123,12 @@ def main(cfg: DictConfig):
     channel_rabbitmq = connection_rabbitmq.channel()
 
     if cfg.get("force_training"):
-        cfg["minio_client"] = minio_client
-        cfg["bucket_name_model"] = MINIO_BUCKET_NAME_MODEL
+        args = dict(cfg)
+        args["minio_client"] = minio_client
+        args["bucket_name_model"] = MINIO_BUCKET_NAME_MODEL
         channel_rabbitmq.basic_consume(
             queue="ml-data",
-            on_message_callback=partial(consume_callback, args=cfg),
+            on_message_callback=partial(consume_callback, args=args),
             auto_ack=True,
         )
         print(" [*] Waiting for messages. To exit press CTRL+C")
