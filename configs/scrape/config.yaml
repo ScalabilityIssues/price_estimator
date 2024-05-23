@@ -18,7 +18,7 @@ cwd: ${hydra:runtime.cwd}
 output_data_dir: ${cwd}/data/scraped/
 available_airports: ${cwd}/configs/scrape/available_codes.json
 
-force_scraping: False
+force_scraping: True
 secure_connection: False
 headless: True
 num_workers: 2

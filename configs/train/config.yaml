@@ -11,12 +11,12 @@ hydra:
 
 cwd: ${hydra:runtime.cwd}
 
-data_dir: ${cwd}/data/scraped/
-output_model_dir: ${cwd}/out/
+train_data_dir: ${cwd}/data/scraped/
+model_out_dir: ${cwd}/out/
 
 date_format: "%Y-%m-%d"
 
-force_training: False
+force_training: True
 secure_connection: False
 
 train_params: {

@@ -17,27 +17,27 @@ from minio import Minio
 
 
 # Produce a file and upload it to MinIO.
-# If the upload fails write log in a file to allow the resuming of the process later
-# Run only in force_scraping=True
+# Run only if force_scraping is set to True in the config file.
 async def main(cfg: DictConfig):
-    # Initialize minio client
-    load_dotenv()
-    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-    MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
-    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-    secure_connection = cfg.get("secure_connection")
-
-    minio_client = Minio(
-        endpoint=MINIO_ENDPOINT,
-        access_key=MINIO_ACCESS_KEY,
-        secret_key=MINIO_SECRET_KEY,
-        secure=secure_connection,
-    )
-    if not minio_client.bucket_exists(MINIO_BUCKET_NAME_TRAINING):
-        raise Exception(f"Bucket {MINIO_BUCKET_NAME_TRAINING} does not exist")
 
     if cfg.get("force_scraping"):
+        load_dotenv()
+        # Load MinIO configuration
+        MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+        MINIO_BUCKET_NAME_TRAINING = os.getenv("MINIO_BUCKET_NAME_TRAINING")
+        MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+        MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+        secure_connection = cfg.get("secure_connection")
+
+        minio_client = Minio(
+            endpoint=MINIO_ENDPOINT,
+            access_key=MINIO_ACCESS_KEY,
+            secret_key=MINIO_SECRET_KEY,
+            secure=secure_connection,
+        )
+        if not minio_client.bucket_exists(MINIO_BUCKET_NAME_TRAINING):
+            raise Exception(f"Bucket {MINIO_BUCKET_NAME_TRAINING} does not exist")
+
         # Get the configuration parameters
         start_date = cfg.get("start_date")
         end_date = cfg.get("end_date")
@@ -100,7 +100,7 @@ async def main(cfg: DictConfig):
         gen_filename = save_info(output_data_dir, results)
         print(f"Data saved in {output_data_dir}")
 
-        # Upload the file, renaming it in the process
+        # Upload the file to MinIO
         result = minio_client.fput_object(
             bucket_name=MINIO_BUCKET_NAME_TRAINING,
             object_name=gen_filename,

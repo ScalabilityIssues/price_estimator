@@ -12,3 +12,4 @@ hydra:
 cwd: ${hydra:runtime.cwd}
 secure_connection: False
 model_dir: ${cwd}/out/
+default_model_name: null

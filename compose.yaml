@@ -87,9 +87,11 @@ services:
       minio-client:
         condition: service_completed_successfully
     restart: on-failure
+    environment:
+      PYTHONUNBUFFERED: 1
     volumes:
-      - ./data/scraped:/app/data/scraped
       - ./configs/scrape:/app/configs/scrape
+      - ./data/scraped:/app/data/scraped
       - ./src:/app/src
     entrypoint: [ "bash", "-c", "python3 src/scrape.py" ]
     
@@ -101,6 +103,8 @@ services:
       minio-client:
         condition: service_completed_successfully
     restart: on-failure
+    environment:
+      PYTHONUNBUFFERED: 1
     volumes:
       - ./configs/train:/app/configs/train
       - ./src:/app/src
@@ -115,6 +119,8 @@ services:
       minio-client:
         condition: service_completed_successfully
     restart: on-failure
+    environment:
+      PYTHONUNBUFFERED: 1
     volumes:
       - ./configs/predict:/app/configs/predict
       - ./src:/app/src
