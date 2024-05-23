@@ -6,6 +6,7 @@ import traceback as tb
 
 from datetime import datetime, timedelta
 import itertools
+import geopy.geocoders
 from geopy.geocoders import Nominatim
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
@@ -105,7 +106,8 @@ def get_flight_price(
     currencies = []
     for mask, p in zip(direct_flights_mask, prices_str):
         if mask:
-            price = float(p.text[1:])
+            # remove comma that stands for thousands separator and dollar sign
+            price = float(p.text[1:].replace(",", ""))
             prices.append(price)
             currency = str(p.text[0])
             currencies.append(currency)
@@ -125,6 +127,7 @@ def get_timezone(place_name: str):
     Raises:
         ValueError: If the location is not found.
     """
+    geopy.geocoders.options.default_timeout = 120000
     geolocator = Nominatim(user_agent="tz_finder")
     location = geolocator.geocode(place_name)
 

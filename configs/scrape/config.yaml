@@ -21,4 +21,4 @@ available_airports: ${cwd}/configs/scrape/available_codes.json
 force_scraping: True
 secure_connection: False
 headless: True
-num_workers: 10
+num_workers: 5
