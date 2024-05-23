@@ -163,4 +163,5 @@ cython_debug/
 # Ignore generated protobuf files
 src/commons
 src/priceest
+data/minIO/*
 data/minIO/!.gitkeep

@@ -2,6 +2,7 @@ import asyncio
 import csv
 from typing import Any, Dict, List, Tuple
 from zoneinfo import ZoneInfo
+import traceback as tb
 
 from datetime import datetime, timedelta
 import itertools
@@ -14,19 +15,19 @@ from bs4 import BeautifulSoup
 
 
 def get_flight_times(
-    soup: BeautifulSoup, direct_flights_mask: List[int], tz_start: str, tz_end: str
+    soup: BeautifulSoup, direct_flights_mask: List[bool], tz_start: str, tz_end: str
 ) -> Tuple[List[str], List[str]]:
     """
-    Extracts the start and end times of flights from the given BeautifulSoup object.
+    Get the start and end times of flights.
 
     Args:
-        soup (BeautifulSoup): The BeautifulSoup object containing the flight information.
-        direct_flights_mask (List[int]): A list of binary values indicating whether each flight is direct or not.
-        tz_start (str): The timezone of the departure location.
+        soup (BeautifulSoup): The BeautifulSoup object representing the parsed HTML.
+        direct_flights_mask (List[bool]): A list of boolean values indicating whether each flight is a direct flight or not.
+        tz_start (str): The timezone of the source location.
         tz_end (str): The timezone of the destination location.
 
     Returns:
-        Tuple[List[str], List[str]]: A tuple containing two lists - the start times and end times of the flights.
+        Tuple[List[str], List[str]]: A tuple containing the start times and end times of the flights.
     """
     times = soup("div", class_="vmXl vmXl-mod-variant-large")
 
@@ -46,6 +47,7 @@ def get_flight_times(
                 ).strftime("%H:%M%z")
             )
 
+            # print("BUG: ", s.find_all("span")[2].text)
             end_time = datetime.strptime(str(s.find_all("span")[2].text), "%I:%M %p")
             end_times.append(
                 datetime(
@@ -65,31 +67,38 @@ def get_direct_flights_mask(
     soup: BeautifulSoup,
 ):
     """
-    Determines whether each flight in the given BeautifulSoup object is a direct flight or not.
+    Get a mask indicating whether each flight is a direct flight or not. Flights that arrives are excluded by default.
 
     Args:
-        soup (BeautifulSoup): The BeautifulSoup object containing the flight information.
+        soup (BeautifulSoup): The BeautifulSoup object representing the parsed HTML.
 
     Returns:
-        List[int]: A list of binary values indicating whether each flight is direct or not.
+        list: A list of boolean values indicating whether each flight is a direct flight or not.
     """
     direct_flights = soup.find_all("span", class_="JWEO-stops-text")
-    direct_flights = [1 if "nonstop" in d.text else 0 for d in direct_flights]
+    times = soup("div", class_="vmXl vmXl-mod-variant-large")
+    day_after_flights = [
+        True if "+1" in str(t.find_all("span")[2].text) else False for t in times
+    ]
+    direct_flights = [
+        True if ("nonstop" in d_f.text) and (not d_a) else False
+        for d_f, d_a in zip(direct_flights, day_after_flights)
+    ]
     return direct_flights
 
 
 def get_flight_price(
-    soup: BeautifulSoup, direct_flights_mask: List[int]
+    soup: BeautifulSoup, direct_flights_mask: List[bool]
 ) -> Tuple[List[float], List[str]]:
     """
-    Extracts the prices and currencies of flights from the given BeautifulSoup object.
+    Get the prices and currencies of flights.
 
     Args:
-        soup (BeautifulSoup): The BeautifulSoup object containing the flight information.
-        direct_flights_mask (List[int]): A list of binary values indicating whether each flight is direct or not.
+        soup (BeautifulSoup): The BeautifulSoup object representing the parsed HTML.
+        direct_flights_mask (List[bool]): A list of boolean values indicating whether each flight is a direct flight or not.
 
     Returns:
-        Tuple[List[float], List[str]]: A tuple containing two lists - the prices and currencies of the flights.
+        Tuple[List[float], List[str]]: A tuple containing the prices and currencies of the flights.
     """
     prices_str = soup.find_all("div", class_="f8F1-price-text")
     prices = []
@@ -224,7 +233,7 @@ async def scrape(
     iata_codes_mapping: Dict[str, str],
     locale: str = "en-US",
     prefix_url: str = "https://www.kayak.com/flights/",
-    timeout: int = 60000,
+    timeout: int = 120000,
 ):
     """
     Scrapes flight data from Kayak website.
@@ -276,7 +285,7 @@ async def scrape(
                 await page.locator(
                     "xpath=//*[contains(@class, 'show-more-button')]"
                 ).click()
-                await asyncio.sleep(5)
+                await asyncio.sleep(10)
         except Exception as e:
             print(f"TASK {task_id} - no more flights to show")
 
@@ -293,7 +302,8 @@ async def scrape(
         )
         return [date, source, destination, start_times, end_times, prices, currencies]
     except Exception as e:
-        print(f"Error scraping data from {url}: {e}")
+        print(f"Error scraping data from {url}")
+        tb.print_exc()
     finally:
         await context.close()
     return []
