@@ -7,4 +7,10 @@ COPY .env .
 
 RUN pip install --no-cache-dir -r ./requirements.txt && playwright install --with-deps chromium
 
-RUN mkdir -p /app/data/scraped/
+COPY src/scrape.py src/utils_scrape.py src/progress.py /app/src/
+
+COPY configs/scrape /app/configs/scrape
+
+VOLUME [ "/app/data/scraped/" ]
+
+ENTRYPOINT [ "python3", "src/scrape.py" ]

@@ -87,11 +87,6 @@ services:
     restart: on-failure
     environment:
       PYTHONUNBUFFERED: 1
-    volumes:
-      - ./configs/scrape:/app/configs/scrape
-      - ./data/scraped:/app/data/scraped
-      - ./src:/app/src
-    entrypoint: [ "bash", "-c", "python3 src/scrape.py" ]
     
   ml-training:
     build:
@@ -103,11 +98,6 @@ services:
     restart: on-failure
     environment:
       PYTHONUNBUFFERED: 1
-    volumes:
-      - ./configs/train:/app/configs/train
-      - ./src:/app/src
-      - ./out:/app/out
-    entrypoint: [ "bash", "-c", "python3 src/train.py" ]
     
   ml-predict:
     build:
@@ -119,10 +109,6 @@ services:
     restart: on-failure
     environment:
       PYTHONUNBUFFERED: 1
-    volumes:
-      - ./configs/predict:/app/configs/predict
-      - ./src:/app/src
-    entrypoint: ["bash", "-c", "/init.sh; python3 src/predict.py"]
 
 volumes:
   minio-data:
