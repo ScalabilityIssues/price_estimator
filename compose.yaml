@@ -1,9 +1,7 @@
 services:
 
   rabbitmq:
-    build:
-      context: .
-      dockerfile: docker/rabbitmq/Dockerfile
+    image: rabbitmq:3-management
     restart: on-failure
     hostname: rabbitmq
     expose:
@@ -13,7 +11,7 @@ services:
       - 5672:5672
       - 15672:15672
     healthcheck:
-      test: curl --fail http://rabbitmq:15672/ || exit 1
+      test: rabbitmq-diagnostics -q ping
       interval: 10s
       timeout: 2m
       retries: 10
