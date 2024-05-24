@@ -58,7 +58,7 @@ services:
       MINIO_NOTIFY_AMQP_ROUTING_KEY_2: "model"
       MINIO_NOTIFY_AMQP_DURABLE_2: "on"
     volumes:
-      - ./data/minIO/:/bitnami/minio/data
+      - minio-data:/bitnami/minio/data
 
   minio-client:
     image: bitnami/minio-client:latest
@@ -123,3 +123,7 @@ services:
       - ./configs/predict:/app/configs/predict
       - ./src:/app/src
     entrypoint: ["bash", "-c", "/init.sh; python3 src/predict.py"]
+
+volumes:
+  minio-data:
+  
