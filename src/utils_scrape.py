@@ -301,7 +301,8 @@ async def scrape(
         )
         prices, currencies = get_flight_price(soup, direct_flights_mask)
         print(
-            f"TASK {task_id} - prices: {len(prices)} start_times: {len(start_times)} end_times: {len(end_times)} currencies: {len(currencies)}\n"
+            f"TASK {task_id} - source: {source} destination: {destination} date: {date}\n"
+            + f"prices: {len(prices)} start_times: {len(start_times)} end_times: {len(end_times)} currencies: {len(currencies)}\n"
         )
         return [date, source, destination, start_times, end_times, prices, currencies]
     except Exception as e:
