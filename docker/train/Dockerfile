@@ -10,4 +10,10 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-RUN mkdir -p /app/out && mkdir -p /app/data/scraped/
+COPY src/train.py src/utils_predict.py src/progress.py /app/src/
+
+COPY configs/train /app/configs/train
+
+VOLUME [ "/app/out", "/app/data/scraped/" ]
+
+ENTRYPOINT [ "python3", "src/train.py" ]

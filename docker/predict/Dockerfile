@@ -24,12 +24,14 @@ COPY .env .
 
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-COPY --from=build-proto /app/priceest /priceest
-COPY --from=build-proto /app/commons /commons
+COPY src/predict.py src/utils_predict.py /app/src/
+COPY --from=build-proto /app/priceest /app/src/priceest
+COPY --from=build-proto /app/commons /app/src/commons
 
-RUN mkdir -p /app/out
-RUN mkdir -p /app/src
-COPY ./docker/predict/init.sh /
-RUN chmod +x /init.sh
+COPY configs/predict /app/configs/predict
+
+VOLUME [ "/app/out" ]
 
 EXPOSE 50051
+
+ENTRYPOINT ["python3", "src/predict.py"]
