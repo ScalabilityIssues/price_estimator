@@ -14,7 +14,7 @@ services:
       - 5672:5672
       - 15672:15672
     healthcheck:
-      test: rabbitmq-diagnostics -q ping
+      test: rabbitmq-diagnostics check_port_connectivity
       interval: 10s
       timeout: 2m
       retries: 10

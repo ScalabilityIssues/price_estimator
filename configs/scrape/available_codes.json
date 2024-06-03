@@ -2,11 +2,8 @@
     "LHR": "London",
     "CDG": "Paris",
     "FRA": "Frankfurt",
-    "AMS": "Amsterdam",
     "BCN": "Barcelona",
     "MUC": "Munich",
     "FCO": "Rome",
-    "ZRH": "Zurich",
-    "VIE": "Vienna",
-    "CPH": "Copenhagen"
+    "ZRH": "Zurich"
 }

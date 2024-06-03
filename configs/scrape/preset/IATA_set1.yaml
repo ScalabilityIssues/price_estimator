@@ -1,5 +1,5 @@
 # @package _global_
 start_date: "2024-09-01"
-end_date: "2024-09-10"
-locations: "LHR,CDG,FRA,AMS,BCN,MUC,FCO,ZRH,VIE,CPH"
+end_date: "2024-09-07"
+locations: "LHR,CDG,FRA,BCN,MUC,FCO,ZRH"
 date_format: "%Y-%m-%d"
