@@ -100,8 +100,8 @@ def consume_callback(ch, method, properties, body, args):
             },
         )
         log.info(f"[*] Object {result.object_name} uploaded to MinIO bucket")
-    except Exception as e:
-        tb.log.info_exc()
+    except:
+        log.exception(f"Error processing AMQP event {body=}")
 
 
 # Train the model and upload it to MinIO, if a message from RabbitMQ arrives (scraping).

@@ -142,8 +142,8 @@ def consume_callback(ch, method, properties, body, args):
 
         model_store.load_model(obj_name_pred)
 
-    except Exception as e:
-        tb.log.info_exc()
+    except:
+        log.exception(f"Error processing AMQP event {body=}")
 
 
 # Download the model from MinIO and start prediction server.

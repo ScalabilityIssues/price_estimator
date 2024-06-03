@@ -305,9 +305,8 @@ async def scrape(
             f"TASK {task_id} - source: {source} destination: {destination} date: {date}\n" +
             f"prices: {len(prices)} start_times: {len(start_times)} end_times: {len(end_times)} currencies: {len(currencies)}")
         return [date, source, destination, start_times, end_times, prices, currencies]
-    except Exception as e:
-        log.error(f"Error scraping data from {url}")
-        tb.log.info_exc()
+    except:
+        log.exception(f"Error scraping data from {url}")
     finally:
         await context.close()
     return []
