@@ -25,18 +25,15 @@ log = logging.getLogger(__name__)
 
 
 class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
-    def __init__(self, model: lgb.Booster | None):
+    def __init__(self, model_store: 'ModelStore'):
         super().__init__()
-        self.model = model
-
-    def update_model(self, new_model: lgb.Booster | None):
-        self.model = new_model
+        self.model_store = model_store
 
     def EstimatePrice(
         self, request: EstimatePriceRequest, context: grpc.ServicerContext
     ) -> EstimatePriceResponse:
 
-        if self.model is None:
+        if self.model_store.model is None:
             raise context.abort(grpc.StatusCode.UNAVAILABLE, "Model not found")
 
         source = request.flight.source
@@ -57,7 +54,7 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
         }
 
         df = build_flight_df(pd.DataFrame(flight_detail), hour_format="%H:%M")
-        price = self.model.predict(df)
+        price = self.model_store.model.predict(df)
 
         response = EstimatePriceResponse()
         response.price.currency_code = "USD"
@@ -69,9 +66,12 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
 
 
 class ModelStore:
+    model: lgb.Booster | None
+
     def __init__(self, minio_client, minio_bucket_name_model):
         self.minio_client = minio_client
         self.bucket_name = minio_bucket_name_model
+        self.model = None
 
     def try_get_latest_model(self):
         objects = self.minio_client.list_objects(self.bucket_name, include_user_meta=True)
@@ -85,10 +85,9 @@ class ModelStore:
 
         if len(all_files) == 0:
             log.info("No files found in the bucket")
-            return None
         else:
             file_name = max(all_files, key=lambda x: x[1])[0]
-            return self.get_model(file_name)
+            self.model = self.get_model(file_name)
 
     def get_model(self, model_name: str):
         try:
@@ -97,20 +96,19 @@ class ModelStore:
                 object_name=model_name,
             )
             log.info(f"Model downloaded: {model_name}")
-            model = lgb.Booster(model_str=response.read(decode_content=True).decode())
-            return model
+            self.model = lgb.Booster(model_str=response.read(decode_content=True).decode())
         finally:
             response.close()
             response.release_conn()
 
 
-def grpc_serve(price_est_obj: PriceEstimation, model_store: ModelStore):
-    model = model_store.try_get_latest_model()
-    price_est_obj.update_model(model)
+def grpc_serve(model_store: ModelStore):
+    model_store.try_get_latest_model()
+    app = PriceEstimation(model_store)
 
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    prices_pb2_grpc.add_PriceEstimationServicer_to_server(price_est_obj, server)
+    prices_pb2_grpc.add_PriceEstimationServicer_to_server(app, server)
     server.add_insecure_port("[::]:" + port)
     server.start()
     log.info("GRPC server started, listening on " + port)
@@ -142,8 +140,7 @@ def consume_callback(ch, method, properties, body, args):
         bucket_name_pred = body["Records"][0]["s3"]["bucket"]["name"]
         log.info(f" [*] Received message for {obj_name_pred} in bucket {bucket_name_pred}")
 
-        model = model_store.get_model(obj_name_pred)
-        price_est_obj.update_model(model)
+        model_store.get_model(obj_name_pred)
 
     except Exception as e:
         tb.log.info_exc()
@@ -166,13 +163,12 @@ def main(cfg: DictConfig):
 
     model_store = ModelStore(minio_client, cfg.minio.bucket_name_model)
 
-    price_est_obj = PriceEstimation(None)
     grpc_service_thread = threading.Thread(
         target=grpc_serve,
-        kwargs={'price_est_obj': price_est_obj, 'model_store': model_store})
+        kwargs={'model_store': model_store})
     rabbitmq_service_thread = threading.Thread(
         target=rabbitmq_listen,
-        kwargs={'args': dict(cfg) | {'model_store': model_store, 'price_est_obj': price_est_obj}})
+        kwargs={'args': {'model_store': model_store}})
 
     log.info("Threads starting...")
     grpc_service_thread.start()
