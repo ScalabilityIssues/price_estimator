@@ -1,4 +1,5 @@
 from functools import partial
+import logging
 from math import modf
 import time
 import threading
@@ -18,6 +19,8 @@ from utils_predict import build_flight_df
 from minio import Minio
 import priceest.prices_pb2_grpc as prices_pb2_grpc
 from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
+
+log = logging.getLogger(__name__)
 
 
 class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
@@ -58,96 +61,91 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
         response = EstimatePriceResponse()
         response.price.currency_code = "USD"
 
-        fractional, units = modf(price)
+        fractional, units = modf(price[0])
         response.price.units, response.price.nanos = int(units), int(fractional * 1e9)
 
         return response
 
 
-def grpc_serve(price_est_obj: PriceEstimation, minio_client: Minio, model_dir: str, minio_bucket_name_model: str):
-    objects = minio_client.list_objects(
-        minio_bucket_name_model, include_user_meta=True
-    )
-    all_files = [
-        (
-            o.object_name,
-            time.mktime(
-                time.strptime(
-                    o.metadata["X-Amz-Meta-Creation-Date"], "%a %b %d %H:%M:%S %Y"
-                )
-            ),
-        )
-        for o in objects
-    ]
+class ModelStore:
+    def __init__(self, minio_client, minio_bucket_name_model):
+        self.minio_client = minio_client
+        self.bucket_name = minio_bucket_name_model
 
-    if len(all_files) == 0:
-        print("No files found in the bucket")
-        model = None
-        price_est_obj.update_model(model)
-    else:
-        file_name = max(all_files, key=lambda x: x[1])[0]
-        result = minio_client.fget_object(
-            bucket_name=minio_bucket_name_model,
-            object_name=file_name,
-            file_path=model_dir + file_name,
-        )
-        if result is None:
-            print("Error downloading the file")
-            return
-        print(f"Model downloaded: {file_name}")
-        model = lgb.Booster(model_file=model_dir + file_name)
-        price_est_obj.update_model(model)
+    def try_get_latest_model(self):
+        objects = self.minio_client.list_objects(self.bucket_name, include_user_meta=True)
+        all_files = [
+            (
+                o.object_name,
+                time.mktime(time.strptime(o.metadata["X-Amz-Meta-Creation-Date"], "%a %b %d %H:%M:%S %Y")),
+            )
+            for o in objects
+        ]
+
+        if len(all_files) == 0:
+            log.info("No files found in the bucket")
+            return None
+        else:
+            file_name = max(all_files, key=lambda x: x[1])[0]
+            return self.get_model(file_name)
+
+    def get_model(self, model_name: str):
+        try:
+            response = self.minio_client.get_object(
+                bucket_name=self.bucket_name,
+                object_name=model_name,
+            )
+            log.info(f"Model downloaded: {model_name}")
+            model = lgb.Booster(model_str=response.read(decode_content=True).decode())
+            return model
+        finally:
+            response.close()
+            response.release_conn()
+
+
+def grpc_serve(price_est_obj: PriceEstimation, model_store: ModelStore):
+    model = model_store.try_get_latest_model()
+    price_est_obj.update_model(model)
 
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     prices_pb2_grpc.add_PriceEstimationServicer_to_server(price_est_obj, server)
     server.add_insecure_port("[::]:" + port)
     server.start()
-    print("Server started, listening on " + port)
+    log.info("GRPC server started, listening on " + port)
     server.wait_for_termination()
 
 
-def rabbitmq_serve(price_est_obj: PriceEstimation, minio_client: Minio, args: dict):
+def rabbitmq_listen(args: dict):
     connection_rabbitmq = pika.BlockingConnection(
         pika.ConnectionParameters(host="rabbitmq")
     )
     channel_rabbitmq = connection_rabbitmq.channel()
-    args["minio_client"] = minio_client
-    args["price_est_obj"] = price_est_obj
     channel_rabbitmq.basic_consume(
         queue="ml-model",
         on_message_callback=partial(consume_callback, args=args),
         auto_ack=True,
     )
-    print(" [*] Waiting for messages. To exit press CTRL+C")
+    log.info("Listening for new models from RabbitMQ")
     channel_rabbitmq.start_consuming()
 
 
 def consume_callback(ch, method, properties, body, args):
     try:
         body = json.loads(body.decode().replace("'", '"'))
-        model_path = args.get("model_dir")
-        minio_client: Minio = args.get("minio_client")
+
         price_est_obj: PriceEstimation = args.get("price_est_obj")
+        model_store: ModelStore = args.get("model_store")
 
         obj_name_pred = body["Records"][0]["s3"]["object"]["key"]
         bucket_name_pred = body["Records"][0]["s3"]["bucket"]["name"]
-        print(f" [*] Received message for {obj_name_pred} in bucket {bucket_name_pred}")
+        log.info(f" [*] Received message for {obj_name_pred} in bucket {bucket_name_pred}")
 
-        minio_client.fget_object(
-            bucket_name=bucket_name_pred,
-            object_name=obj_name_pred,
-            file_path=model_path + obj_name_pred,
-        )
-
-        if not os.path.exists(model_path + obj_name_pred):
-            raise Exception("Error downloading the file")
-
-        model = lgb.Booster(model_file=model_path + obj_name_pred)
+        model = model_store.get_model(obj_name_pred)
         price_est_obj.update_model(model)
 
     except Exception as e:
-        tb.print_exc()
+        tb.log.info_exc()
 
 
 # Download the model from MinIO and start prediction server.
@@ -160,7 +158,6 @@ def main(cfg: DictConfig):
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
     MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
     secure_connection = cfg.get("secure_connection")
-    model_dir = cfg.get("model_dir")
 
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
@@ -171,16 +168,17 @@ def main(cfg: DictConfig):
     if not minio_client.bucket_exists(MINIO_BUCKET_NAME_MODEL):
         raise Exception(f"Bucket {MINIO_BUCKET_NAME_MODEL} do not exist")
 
-    args = dict(cfg)
+    model_store = ModelStore(minio_client, MINIO_BUCKET_NAME_MODEL)
+
     price_est_obj = PriceEstimation(None)
     grpc_service_thread = threading.Thread(
         target=grpc_serve,
-        kwargs={'price_est_obj': price_est_obj, 'minio_client': minio_client, 'model_dir': model_dir,
-                'minio_bucket_name_model': MINIO_BUCKET_NAME_MODEL})
-    rabbitmq_service_thread = threading.Thread(target=rabbitmq_serve, kwargs={
-                                               'price_est_obj': price_est_obj, 'minio_client': minio_client, 'args': args})
+        kwargs={'price_est_obj': price_est_obj, 'model_store': model_store})
+    rabbitmq_service_thread = threading.Thread(
+        target=rabbitmq_listen,
+        kwargs={'args': dict(cfg) | {'model_store': model_store, 'price_est_obj': price_est_obj}})
 
-    print("Threads starting...")
+    log.info("Threads starting...")
     grpc_service_thread.start()
     rabbitmq_service_thread.start()
 

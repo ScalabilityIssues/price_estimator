@@ -30,8 +30,6 @@ COPY --from=build-proto /app/commons /app/src/commons
 
 COPY configs/predict /app/configs/predict
 
-VOLUME [ "/app/out" ]
-
 EXPOSE 50051
 
 ENTRYPOINT ["python3", "src/predict.py"]
