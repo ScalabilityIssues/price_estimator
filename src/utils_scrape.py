@@ -1,18 +1,19 @@
 import asyncio
 import csv
+import itertools
+import logging
+import traceback as tb
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 from zoneinfo import ZoneInfo
-import traceback as tb
 
-from datetime import datetime, timedelta
-import itertools
 import geopy.geocoders
-from geopy.geocoders import Nominatim
-from geopy.geocoders import Nominatim
-from timezonefinder import TimezoneFinder
-from playwright.async_api import Browser
-
 from bs4 import BeautifulSoup
+from geopy.geocoders import Nominatim
+from playwright.async_api import Browser
+from timezonefinder import TimezoneFinder
+
+log = logging.getLogger(__name__)
 
 
 def get_flight_times(
@@ -48,7 +49,7 @@ def get_flight_times(
                 ).strftime("%H:%M%z")
             )
 
-            # print("BUG: ", s.find_all("span")[2].text)
+            # log.info("BUG: ", s.find_all("span")[2].text)
             end_time = datetime.strptime(str(s.find_all("span")[2].text), "%I:%M %p")
             end_times.append(
                 datetime(
@@ -280,7 +281,7 @@ async def scrape(
                 "xpath=//div[@class='RxNS-button-content' ]", has_text="Accept all"
             ).click()
         except Exception as e:
-            print(f"TASK {task_id} - no cookies to accept")
+            log.info(f"TASK {task_id} - no cookies to accept")
 
         # Click "show more" button to get more flights
         try:
@@ -290,7 +291,7 @@ async def scrape(
                 ).click()
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"TASK {task_id} - no more flights to show")
+            log.info(f"TASK {task_id} - no more flights to show")
 
         page_source = await page.content()
         soup = BeautifulSoup(page_source, "html.parser")
@@ -300,14 +301,13 @@ async def scrape(
             soup, direct_flights_mask, tz_start, tz_end
         )
         prices, currencies = get_flight_price(soup, direct_flights_mask)
-        print(
-            f"TASK {task_id} - source: {source} destination: {destination} date: {date}\n"
-            + f"prices: {len(prices)} start_times: {len(start_times)} end_times: {len(end_times)} currencies: {len(currencies)}\n"
-        )
+        log.info(
+            f"TASK {task_id} - source: {source} destination: {destination} date: {date}\n" +
+            f"prices: {len(prices)} start_times: {len(start_times)} end_times: {len(end_times)} currencies: {len(currencies)}")
         return [date, source, destination, start_times, end_times, prices, currencies]
     except Exception as e:
-        print(f"Error scraping data from {url}")
-        tb.print_exc()
+        log.error(f"Error scraping data from {url}")
+        tb.log.info_exc()
     finally:
         await context.close()
     return []

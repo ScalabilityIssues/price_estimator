@@ -68,12 +68,12 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
 class ModelStore:
     model: lgb.Booster | None
 
-    def __init__(self, minio_client, minio_bucket_name_model):
+    def __init__(self, minio_client: Minio, minio_bucket_name_model: str):
         self.minio_client = minio_client
         self.bucket_name = minio_bucket_name_model
         self.model = None
 
-    def try_get_latest_model(self):
+    def load_latest_model(self):
         objects = self.minio_client.list_objects(self.bucket_name, include_user_meta=True)
         all_files = [
             (
@@ -84,12 +84,12 @@ class ModelStore:
         ]
 
         if len(all_files) == 0:
-            log.info("No files found in the bucket")
+            log.warn("No files found in the bucket")
         else:
             file_name = max(all_files, key=lambda x: x[1])[0]
-            self.model = self.get_model(file_name)
+            self.load_model(file_name)
 
-    def get_model(self, model_name: str):
+    def load_model(self, model_name: str):
         try:
             response = self.minio_client.get_object(
                 bucket_name=self.bucket_name,
@@ -103,7 +103,7 @@ class ModelStore:
 
 
 def grpc_serve(model_store: ModelStore):
-    model_store.try_get_latest_model()
+    model_store.load_latest_model()
     app = PriceEstimation(model_store)
 
     port = "50051"
@@ -140,7 +140,7 @@ def consume_callback(ch, method, properties, body, args):
         bucket_name_pred = body["Records"][0]["s3"]["bucket"]["name"]
         log.info(f" [*] Received message for {obj_name_pred} in bucket {bucket_name_pred}")
 
-        model_store.get_model(obj_name_pred)
+        model_store.load_model(obj_name_pred)
 
     except Exception as e:
         tb.log.info_exc()

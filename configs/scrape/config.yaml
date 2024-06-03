@@ -2,9 +2,7 @@
 
 defaults:  
   - _self_
-  - preset: IATA_set1 
-  - override hydra/hydra_logging: disabled  
-  - override hydra/job_logging: disabled
+  - preset: IATA_set1
   
 hydra:
   output_subdir: null  
@@ -19,6 +17,12 @@ output_data_dir: ${cwd}/data/scraped/
 available_airports: ${cwd}/configs/scrape/available_codes.json
 
 force_scraping: True
-secure_connection: False
 headless: True
 num_workers: 5
+
+minio:
+  endpoint: ${oc.env:MINIO_ENDPOINT}
+  bucket_name_training: ${oc.env:MINIO_BUCKET_NAME_TRAINING}
+  access_key: ${oc.env:MINIO_ACCESS_KEY}
+  secret_key: ${oc.env:MINIO_SECRET_KEY}
+  secure_connection: False
