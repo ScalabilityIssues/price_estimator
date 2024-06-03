@@ -1,5 +1,7 @@
 from functools import partial
+from math import modf
 import time
+import threading
 from dotenv import load_dotenv
 import lightgbm as lgb
 import os
@@ -19,13 +21,19 @@ from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
 
 
 class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
-    def __init__(self, model: lgb.Booster):
+    def __init__(self, model: lgb.Booster | None):
         super().__init__()
         self.model = model
 
+    def update_model(self, new_model: lgb.Booster | None):
+        self.model = new_model
+
     def EstimatePrice(
-        self, request: EstimatePriceRequest, context
+        self, request: EstimatePriceRequest, context: grpc.ServicerContext
     ) -> EstimatePriceResponse:
+
+        if self.model is None:
+            raise context.abort(grpc.StatusCode.UNAVAILABLE, "Model not found")
 
         source = request.flight.source
         destination = request.flight.destination
@@ -49,31 +57,78 @@ class PriceEstimation(prices_pb2_grpc.PriceEstimationServicer):
 
         response = EstimatePriceResponse()
         response.price.currency_code = "USD"
-        decimal, integer = np.modf(price)
-        response.price.units, response.price.nanos = (
-            int(decimal[0]),
-            int(integer[0]),
-        )
+
+        fractional, units = modf(price)
+        response.price.units, response.price.nanos = int(units), int(fractional * 1e9)
+
         return response
 
 
-def serve(model: lgb.Booster):
+def grpc_serve(price_est_obj: PriceEstimation, minio_client: Minio, model_dir: str, minio_bucket_name_model: str):
+    objects = minio_client.list_objects(
+        minio_bucket_name_model, include_user_meta=True
+    )
+    all_files = [
+        (
+            o.object_name,
+            time.mktime(
+                time.strptime(
+                    o.metadata["X-Amz-Meta-Creation-Date"], "%a %b %d %H:%M:%S %Y"
+                )
+            ),
+        )
+        for o in objects
+    ]
+
+    if len(all_files) == 0:
+        print("No files found in the bucket")
+        model = None
+        price_est_obj.update_model(model)
+    else:
+        file_name = max(all_files, key=lambda x: x[1])[0]
+        result = minio_client.fget_object(
+            bucket_name=minio_bucket_name_model,
+            object_name=file_name,
+            file_path=model_dir + file_name,
+        )
+        if result is None:
+            print("Error downloading the file")
+            return
+        print(f"Model downloaded: {file_name}")
+        model = lgb.Booster(model_file=model_dir + file_name)
+        price_est_obj.update_model(model)
+
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    prices_pb2_grpc.add_PriceEstimationServicer_to_server(
-        PriceEstimation(model), server
-    )
+    prices_pb2_grpc.add_PriceEstimationServicer_to_server(price_est_obj, server)
     server.add_insecure_port("[::]:" + port)
     server.start()
     print("Server started, listening on " + port)
     server.wait_for_termination()
 
 
+def rabbitmq_serve(price_est_obj: PriceEstimation, minio_client: Minio, args: dict):
+    connection_rabbitmq = pika.BlockingConnection(
+        pika.ConnectionParameters(host="rabbitmq")
+    )
+    channel_rabbitmq = connection_rabbitmq.channel()
+    args["minio_client"] = minio_client
+    args["price_est_obj"] = price_est_obj
+    channel_rabbitmq.basic_consume(
+        queue="ml-model",
+        on_message_callback=partial(consume_callback, args=args),
+        auto_ack=True,
+    )
+    print(" [*] Waiting for messages. To exit press CTRL+C")
+    channel_rabbitmq.start_consuming()
+
+
 def consume_callback(ch, method, properties, body, args):
     try:
         body = json.loads(body.decode().replace("'", '"'))
         model_path = args.get("model_dir")
-        minio_client = args.get("minio_client")
+        minio_client: Minio = args.get("minio_client")
+        price_est_obj: PriceEstimation = args.get("price_est_obj")
 
         obj_name_pred = body["Records"][0]["s3"]["object"]["key"]
         bucket_name_pred = body["Records"][0]["s3"]["bucket"]["name"]
@@ -84,9 +139,13 @@ def consume_callback(ch, method, properties, body, args):
             object_name=obj_name_pred,
             file_path=model_path + obj_name_pred,
         )
+
         if not os.path.exists(model_path + obj_name_pred):
             raise Exception("Error downloading the file")
-        ch.stop_consuming()
+
+        model = lgb.Booster(model_file=model_path + obj_name_pred)
+        price_est_obj.update_model(model)
+
     except Exception as e:
         tb.print_exc()
 
@@ -112,73 +171,21 @@ def main(cfg: DictConfig):
     if not minio_client.bucket_exists(MINIO_BUCKET_NAME_MODEL):
         raise Exception(f"Bucket {MINIO_BUCKET_NAME_MODEL} do not exist")
 
-    default_model_name = cfg.get("default_model_name")
-    if default_model_name is None:
-        objects = minio_client.list_objects(
-            MINIO_BUCKET_NAME_MODEL, include_user_meta=True
-        )
-        all_files = [
-            (
-                o.object_name,
-                time.mktime(
-                    time.strptime(
-                        o.metadata["X-Amz-Meta-Creation-Date"], "%a %b %d %H:%M:%S %Y"
-                    )
-                ),
-            )
-            for o in objects
-        ]
-        if len(all_files) == 0:
-            print("No files found in the bucket")
-            connection_rabbitmq = pika.BlockingConnection(
-                pika.ConnectionParameters(host="rabbitmq")
-            )
-            args = dict(cfg)
-            channel_rabbitmq = connection_rabbitmq.channel()
-            args["minio_client"] = minio_client
-            channel_rabbitmq.basic_consume(
-                queue="ml-model",
-                on_message_callback=partial(consume_callback, args=args),
-                auto_ack=True,
-            )
-            print(" [*] Waiting for messages. To exit press CTRL+C")
-            channel_rabbitmq.start_consuming()
-            connection_rabbitmq.close()
+    args = dict(cfg)
+    price_est_obj = PriceEstimation(None)
+    grpc_service_thread = threading.Thread(
+        target=grpc_serve,
+        kwargs={'price_est_obj': price_est_obj, 'minio_client': minio_client, 'model_dir': model_dir,
+                'minio_bucket_name_model': MINIO_BUCKET_NAME_MODEL})
+    rabbitmq_service_thread = threading.Thread(target=rabbitmq_serve, kwargs={
+                                               'price_est_obj': price_est_obj, 'minio_client': minio_client, 'args': args})
 
-            if os.path.exists(model_dir):
-                all_files = [
-                    model_dir + f
-                    for f in os.listdir(model_dir)
-                    if not (model_dir + f).endswith(".gitkeep")
-                ]
-                latest_file = max(all_files, key=os.path.getctime)
-                model = lgb.Booster(model_file=latest_file)
-                serve(model)
-            else:
-                print("No model found")
-        else:
-            file_name = max(all_files, key=lambda x: x[1])[0]
-            result = minio_client.fget_object(
-                bucket_name=MINIO_BUCKET_NAME_MODEL,
-                object_name=file_name,
-                file_path=model_dir + file_name,
-            )
-            if result is None:
-                print("[*] Error downloading the file")
-                return
-            model = lgb.Booster(model_file=model_dir + file_name)
-            serve(model)
-    else:
-        result = minio_client.fget_object(
-            bucket_name=MINIO_BUCKET_NAME_MODEL,
-            object_name=default_model_name,
-            file_path=model_dir + default_model_name,
-        )
-        if result is None:
-            print(f'[*] Error downloading the default model "{default_model_name}"')
-            return
-        model = lgb.Booster(model_file=model_dir + default_model_name)
-        serve(model)
+    print("Threads starting...")
+    grpc_service_thread.start()
+    rabbitmq_service_thread.start()
+
+    grpc_service_thread.join()
+    rabbitmq_service_thread.join()
 
 
 if __name__ == "__main__":
