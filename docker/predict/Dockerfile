@@ -29,6 +29,8 @@ COPY --from=build-proto /app/commons /app/src/commons
 
 COPY configs/predict /app/configs/predict
 
+LABEL org.opencontainers.image.source="https://github.com/ScalabilityIssues/price_estimator"
+
 EXPOSE 50051
 
 ENTRYPOINT ["python3", "src/predict.py"]

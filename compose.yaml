@@ -106,6 +106,8 @@ services:
       minio-client:
         condition: service_completed_successfully
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - 50051:50051
 

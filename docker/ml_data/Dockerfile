@@ -13,4 +13,6 @@ COPY configs/scrape /app/configs/scrape
 
 VOLUME [ "/app/data/scraped/" ]
 
+LABEL org.opencontainers.image.source="https://github.com/ScalabilityIssues/price_estimator"
+
 ENTRYPOINT [ "python3", "src/scrape.py" ]

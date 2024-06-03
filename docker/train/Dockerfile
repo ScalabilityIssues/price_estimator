@@ -16,4 +16,7 @@ COPY configs/train /app/configs/train
 
 VOLUME [ "/app/out", "/app/data/scraped/" ]
 
+
+LABEL org.opencontainers.image.source="https://github.com/ScalabilityIssues/price_estimator"
+
 ENTRYPOINT [ "python3", "src/train.py" ]
