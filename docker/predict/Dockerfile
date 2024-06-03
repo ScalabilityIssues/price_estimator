@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements/price_prediction/requirements.txt .
-COPY .env .
 
 RUN pip install --no-cache-dir -r ./requirements.txt
 

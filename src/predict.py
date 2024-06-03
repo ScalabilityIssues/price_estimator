@@ -1,24 +1,25 @@
-from functools import partial
-import logging
-from math import modf
-import time
-import threading
-from dotenv import load_dotenv
-import lightgbm as lgb
-import os
 import json
+import logging
+import threading
+import time
 import traceback as tb
 from concurrent import futures
+from functools import partial
+from math import modf
+
+from dotenv import load_dotenv
 import grpc
-import numpy as np
-from omegaconf import DictConfig
-import pandas as pd
 import hydra
+import lightgbm as lgb
+import numpy as np
+import pandas as pd
 import pika
-from utils_predict import build_flight_df
 from minio import Minio
+from omegaconf import DictConfig
+
 import priceest.prices_pb2_grpc as prices_pb2_grpc
 from priceest.prices_pb2 import EstimatePriceRequest, EstimatePriceResponse
+from utils_predict import build_flight_df
 
 log = logging.getLogger(__name__)
 
@@ -153,22 +154,17 @@ def consume_callback(ch, method, properties, body, args):
 @hydra.main(version_base="1.3", config_path="../configs/predict", config_name="config")
 def main(cfg: DictConfig):
     load_dotenv()
-    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
-    MINIO_BUCKET_NAME_MODEL = os.getenv("MINIO_BUCKET_NAME_MODEL")
-    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
-    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
-    secure_connection = cfg.get("secure_connection")
 
     minio_client = Minio(
-        endpoint=MINIO_ENDPOINT,
-        access_key=MINIO_ACCESS_KEY,
-        secret_key=MINIO_SECRET_KEY,
-        secure=secure_connection,
+        endpoint=cfg.minio.endpoint,
+        access_key=cfg.minio.access_key,
+        secret_key=cfg.minio.secret_key,
+        secure=cfg.minio.secure_connection,
     )
-    if not minio_client.bucket_exists(MINIO_BUCKET_NAME_MODEL):
-        raise Exception(f"Bucket {MINIO_BUCKET_NAME_MODEL} do not exist")
+    if not minio_client.bucket_exists(cfg.minio.bucket_name_model):
+        raise Exception(f"Bucket {cfg.minio.bucket_name_model} do not exist")
 
-    model_store = ModelStore(minio_client, MINIO_BUCKET_NAME_MODEL)
+    model_store = ModelStore(minio_client, cfg.minio.bucket_name_model)
 
     price_est_obj = PriceEstimation(None)
     grpc_service_thread = threading.Thread(

@@ -1,11 +1,15 @@
-defaults:  
-  - _self_  
-  
-hydra:  
-  output_subdir: null  
-  run:  
+defaults:
+  - _self_
+
+hydra:
+  output_subdir: null
+  run:
     dir: .
 
-
 cwd: ${hydra:runtime.cwd}
-secure_connection: False
+minio:
+  endpoint: ${oc.env:MINIO_ENDPOINT}
+  bucket_name_model: ${oc.env:MINIO_BUCKET_NAME_MODEL}
+  access_key: ${oc.env:MINIO_ACCESS_KEY}
+  secret_key: ${oc.env:MINIO_SECRET_KEY}
+  secure_connection: False
