@@ -8,7 +8,7 @@ defaults:
   
 hydra:
   output_subdir: null  
-  run:  
+  run:
     dir: .
 
 
