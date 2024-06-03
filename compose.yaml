@@ -2,7 +2,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management
-    restart: on-failure
+    restart: unless-stopped
     hostname: rabbitmq
     expose:
       - 5672
@@ -26,7 +26,7 @@ services:
   minio-server:
     # https://min.io/docs/minio/container/index.html
     image: bitnami/minio:latest
-    restart: on-failure
+    restart: unless-stopped
     hostname: minio
     depends_on:
       rabbitmq:
@@ -87,10 +87,8 @@ services:
     depends_on:
       minio-client:
         condition: service_completed_successfully
-    restart: on-failure
-    environment:
-      PYTHONUNBUFFERED: 1
-    
+    restart: unless-stopped
+
   ml-training:
     build:
       context: .
@@ -98,10 +96,8 @@ services:
     depends_on:
       minio-client:
         condition: service_completed_successfully
-    restart: on-failure
-    environment:
-      PYTHONUNBUFFERED: 1
-    
+    restart: unless-stopped
+
   ml-predict:
     build:
       context: .
@@ -109,9 +105,9 @@ services:
     depends_on:
       minio-client:
         condition: service_completed_successfully
-    restart: on-failure
-    environment:
-      PYTHONUNBUFFERED: 1
+    restart: unless-stopped
+    ports:
+      - 50051:50051
 
 volumes:
   minio-data:
