@@ -120,6 +120,9 @@ def rabbitmq_listen(args: dict):
         pika.ConnectionParameters(host="rabbitmq")
     )
     channel_rabbitmq = connection_rabbitmq.channel()
+    channel_rabbitmq.exchange_declare(exchange="minio-events", exchange_type="direct", durable=True)
+    channel_rabbitmq.queue_declare(queue="ml-model", durable=True, auto_delete=False)
+    channel_rabbitmq.queue_bind(queue="ml-model", exchange="minio-events", routing_key="model")
     channel_rabbitmq.basic_consume(
         queue="ml-model",
         on_message_callback=partial(consume_callback, args=args),
