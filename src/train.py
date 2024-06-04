@@ -125,9 +125,9 @@ def main(cfg: DictConfig):
             pika.ConnectionParameters(host="rabbitmq")
         )
         channel_rabbitmq = connection_rabbitmq.channel()
-        channel_rabbitmq.exchange_declare(exchange="minio-events", exchange_type="direct", durable=True)
-        channel_rabbitmq.queue_declare(queue="ml-data", durable=True, auto_delete=False)
-        channel_rabbitmq.queue_bind(queue="ml-data", exchange="minio-events", routing_key="model")
+        channel_rabbitmq.exchange_declare(exchange="minio-events", exchange_type="direct")
+        channel_rabbitmq.queue_declare(queue="ml-data")
+        channel_rabbitmq.queue_bind(queue="ml-data", exchange="minio-events", routing_key="data")
 
         args = dict(cfg)
         args["minio_client"] = minio_client
