@@ -84,7 +84,7 @@ class ModelStore:
         ]
 
         if len(all_files) == 0:
-            log.warn("No files found in the bucket")
+            log.warning("No files found in the bucket")
         else:
             file_name = max(all_files, key=lambda x: x[1])[0]
             self.load_model(file_name)
@@ -120,8 +120,8 @@ def rabbitmq_listen(args: dict):
         pika.ConnectionParameters(host="rabbitmq")
     )
     channel_rabbitmq = connection_rabbitmq.channel()
-    channel_rabbitmq.exchange_declare(exchange="minio-events", exchange_type="direct", durable=True)
-    channel_rabbitmq.queue_declare(queue="ml-model", durable=True, auto_delete=False)
+    channel_rabbitmq.exchange_declare(exchange="minio-events", exchange_type="direct")
+    channel_rabbitmq.queue_declare(queue="ml-model")
     channel_rabbitmq.queue_bind(queue="ml-model", exchange="minio-events", routing_key="model")
     channel_rabbitmq.basic_consume(
         queue="ml-model",

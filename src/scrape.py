@@ -104,7 +104,7 @@ async def main(cfg: DictConfig):
         )
         log.info(f"\nObject {result.object_name} uploaded to MinIO bucket")
     else:
-        log.warn("Scraping not forced, skipping...")
+        log.warning("Scraping not forced, skipping...")
 
 
 if __name__ == "__main__":

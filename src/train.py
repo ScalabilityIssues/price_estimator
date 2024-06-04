@@ -143,7 +143,7 @@ def main(cfg: DictConfig):
         channel_rabbitmq.start_consuming()
         connection_rabbitmq.close()
     else:
-        log.warn("Training not forced, skipping...")
+        log.warning("Training not forced, skipping...")
 
 
 if __name__ == "__main__":
